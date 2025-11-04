@@ -1,6 +1,8 @@
-from .crud import authenticate_user, update_user_profile
+from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
 import logging
+
+from .crud import authenticate_user, update_user_profile, create_access_token
 
 logger = logging.getLogger(__name__)
 

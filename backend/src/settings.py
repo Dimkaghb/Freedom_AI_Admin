@@ -63,6 +63,7 @@ class Settings(BaseSettings):
     MONGODB_URL: str = os.getenv("MONGODB_URL", "mongodb://localhost:27017")
     DATABASE_NAME: str = os.getenv("DATABASE_NAME", "Choco")
     USERS_COLLECTION: str = os.getenv("USERS_COLLECTION", "Choco_users")
+    HOLDINGS_COLLECTION: str = os.getenv("HOLDINGS_COLLECTION", "holdings")
 
     #S3 config
     S3_ENDPOINT: str = os.getenv("S3_ENDPOINT")
