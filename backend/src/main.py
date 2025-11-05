@@ -6,6 +6,7 @@ from .settings import settings
 from .users.api import router as users_router
 from .auth.api import router as auth_router
 from .holdings.api import router as holdings_router
+from .companies.api import router as companies_router
 
 # Configure logging
 logging.basicConfig(
@@ -33,6 +34,7 @@ app.add_middleware(
 app.include_router(users_router)
 app.include_router(auth_router)
 app.include_router(holdings_router)
+app.include_router(companies_router)
 
 @app.get("/")
 async def root():

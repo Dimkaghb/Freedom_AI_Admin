@@ -64,6 +64,7 @@ class Settings(BaseSettings):
     DATABASE_NAME: str = os.getenv("DATABASE_NAME", "Choco")
     USERS_COLLECTION: str = os.getenv("USERS_COLLECTION", "Choco_users")
     HOLDINGS_COLLECTION: str = os.getenv("HOLDINGS_COLLECTION", "holdings")
+    COMPANIES_COLLECTION: str = os.getenv("COMPANIES_COLLECTION", "companies")
 
     #S3 config
     S3_ENDPOINT: str = os.getenv("S3_ENDPOINT")
