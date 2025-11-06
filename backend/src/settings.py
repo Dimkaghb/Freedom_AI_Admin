@@ -1,5 +1,6 @@
 import os
 from typing import List
+from datetime import timedelta
 try:
     from pydantic_settings import BaseSettings
 except ImportError:
@@ -59,6 +60,11 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30  # 30 minutes for access token
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7  # 7 days for refresh token
+
+    # Registration Link Configuration
+    USER_LINK_EXPIRATION_HOURS: int = 24  # Registration link expires in 24 hours
+    USER_LINK_EXPIRATION_DELTA: timedelta = timedelta(hours=24)
+    FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:5173")
     
     # MongoDB Configuration
     MONGODB_URL: str = os.getenv("MONGODB_URL", "mongodb://localhost:27017")
@@ -68,6 +74,8 @@ class Settings(BaseSettings):
     COMPANIES_COLLECTION: str = os.getenv("COMPANIES_COLLECTION", "companies")
     DEPARTMENTS_COLLECTION: str = os.getenv("DEPARTMENTS_COLLECTION", "departments")
     FOLDERS_COLLECTION: str = os.getenv("FOLDERS_COLLECTION", "folders")
+    USER_LINKS_COLLECTION: str = os.getenv("USER_LINKS_COLLECTION", "user_registration_links")
+    PENDING_USERS_COLLECTION: str = os.getenv("PENDING_USERS_COLLECTION", "pending_users")
 
     #S3 config
     S3_ENDPOINT: str = os.getenv("S3_ENDPOINT")

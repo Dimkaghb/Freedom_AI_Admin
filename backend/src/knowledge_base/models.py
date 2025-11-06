@@ -28,7 +28,8 @@ class FolderBase(BaseModel):
     admin_id: Optional[str] = Field(default=None, description="ID of the admin managing this folder")
 
 class FolderCreate(FolderBase):
-    name = Field(..., min_length=1, max_length=255)
+    """Model for creating a new folder"""
+    pass
 
 
 class FolderRename(BaseModel):

@@ -3,6 +3,7 @@ import './index.css'
 import { Dashboard } from '@/modules/dashboard'
 import { Route, Routes, Navigate } from 'react-router-dom'
 import { AuthPage } from '@/modules/auth'
+import { RegisterPage } from '@/modules/register'
 import { AuthProvider, useAuth } from '@/shared/stores/authstore'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { HoldiingAdminDashboard } from '@/modules/holdingAdminDashboard'
@@ -34,6 +35,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/" element={<AuthPageWrapper />} />
+      <Route path="/register" element={<RegisterPage />} />
       <Route
         path="/dashboard"
         element={

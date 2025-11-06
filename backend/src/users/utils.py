@@ -11,7 +11,17 @@ import bcrypt
 from email_validator import validate_email, EmailNotValidError
 
 from ..settings import settings
-from .models import UserInDB, UserCreateResponse, CreateUserLink
+from .models import (
+    UserInDB,
+    UserCreateResponse,
+    CreateUserLink,
+    RegistrationLinkCreate,
+    RegistrationLinkResponse,
+    PendingUserCreate,
+    PendingUserResponse,
+    PendingUserInDB
+)
+from bson import ObjectId
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -266,36 +276,604 @@ def add_user(user_email: str, user_role: str):
         raise ValueError(f"Error adding user to database: {e}")
     
 
-def create_registration_link(CreateUserLink: CreateUserLink) -> str:
-    user_link_id = secrets.token_urlsafe(16)
-    # Here you would typically store the link in the database with an expiration time
-    logger.info(f"Created registration link with ID: {user_link_id} for company ID: {CreateUserLink.company_id}")
-    db = get_mongodb_connection()[settings.DATABASE_NAME]
-    links_collection = db[settings.USER_LINKS_COLLECTION]
-    link_doc = {
-        "link_id": user_link_id,
-        "company_id": CreateUserLink.company_id,
-        "department_id": CreateUserLink.department_id,
-        "role": CreateUserLink.role,
-        "created_at": datetime.utcnow(),
-        "expires_at": datetime.utcnow() + settings.USER_LINK_EXPIRATION_DELTA
-    }
-    links_collection.insert_one(link_doc)
-    registration_url = f"{settings.FRONTEND_URL}/register?link_id={user_link_id}"
-    return registration_url
+def create_registration_link(link_data: RegistrationLinkCreate) -> RegistrationLinkResponse:
+    """
+    Create a registration link for new users to register.
+
+    The link expires after 24 hours and can be used to register users
+    at company level (admin role) or department level (director/user roles).
+
+    Args:
+        link_data: Registration link creation data
+
+    Returns:
+        RegistrationLinkResponse: Created link with registration URL
+
+    Raises:
+        ValueError: If company_id or department_id is invalid
+        ConnectionFailure: If database connection fails
+    """
+    client = None
+    try:
+        # Generate secure link ID
+        link_id = secrets.token_urlsafe(32)
+
+        # Validate company_id exists
+        client = get_mongodb_connection()
+        db = client[settings.DATABASE_NAME]
+        companies_collection = db[settings.COMPANIES_COLLECTION]
+
+        if not ObjectId.is_valid(link_data.company_id):
+            raise ValueError(f"Invalid company_id format: {link_data.company_id}")
+
+        company = companies_collection.find_one({"_id": ObjectId(link_data.company_id)})
+        if not company:
+            raise ValueError(f"Company not found with ID: {link_data.company_id}")
+
+        # Get holding_id from company
+        holding_id = company.get("holding_id")
+
+        # If department_id provided, validate it
+        if link_data.department_id:
+            if not ObjectId.is_valid(link_data.department_id):
+                raise ValueError(f"Invalid department_id format: {link_data.department_id}")
+
+            departments_collection = db[settings.DEPARTMENTS_COLLECTION]
+            department = departments_collection.find_one({"_id": ObjectId(link_data.department_id)})
+            if not department:
+                raise ValueError(f"Department not found with ID: {link_data.department_id}")
+
+            # Verify department belongs to the company
+            if department.get("company_id") != link_data.company_id:
+                raise ValueError(f"Department {link_data.department_id} does not belong to company {link_data.company_id}")
+
+        # Create link document
+        current_time = datetime.utcnow()
+        expires_at = current_time + settings.USER_LINK_EXPIRATION_DELTA
+
+        link_doc = {
+            "link_id": link_id,
+            "company_id": link_data.company_id,
+            "department_id": link_data.department_id,
+            "holding_id": holding_id,
+            "role": link_data.role,
+            "created_at": current_time,
+            "expires_at": expires_at,
+            "is_used": False
+        }
+
+        # Store in database
+        links_collection = db[settings.USER_LINKS_COLLECTION]
+        links_collection.insert_one(link_doc)
+
+        # Generate registration URL
+        registration_url = f"{settings.FRONTEND_URL}/register?link_id={link_id}"
+
+        logger.info(
+            f"Created registration link {link_id} for company {link_data.company_id}, "
+            f"department {link_data.department_id}, role {link_data.role}"
+        )
+
+        return RegistrationLinkResponse(
+            link_id=link_id,
+            registration_url=registration_url,
+            company_id=link_data.company_id,
+            department_id=link_data.department_id,
+            role=link_data.role,
+            created_at=current_time,
+            expires_at=expires_at,
+            is_used=False
+        )
+
+    except ValueError:
+        raise
+    except (ConnectionFailure, ServerSelectionTimeoutError) as e:
+        logger.error(f"Database connection error while creating registration link: {str(e)}")
+        raise ConnectionFailure(f"Failed to create registration link: {str(e)}")
+    except Exception as e:
+        logger.error(f"Unexpected error while creating registration link: {str(e)}")
+        raise Exception(f"Failed to create registration link: {str(e)}")
+    finally:
+        if client:
+            client.close()
+
 
 def verify_registration_link(link_id: str) -> Dict[str, Any]:
-    db = get_mongodb_connection()[settings.DATABASE_NAME]
-    links_collection = db[settings.USER_LINKS_COLLECTION]
-    link_doc = links_collection.find_one({"link_id": link_id})
-    if not link_doc:
-        raise ValueError("Invalid registration link")
-    if link_doc["expires_at"] < datetime.utcnow():
-        raise ValueError("Registration link has expired")
-    logger.info(f"Verified registration link with ID: {link_id}")
-    return {
-        "company_id": link_doc["company_id"],
-        "department_id": link_doc.get("department_id"),
-        "role": link_doc["role"]
-    }
+    """
+    Verify registration link is valid and not expired.
 
+    Args:
+        link_id: Registration link identifier
+
+    Returns:
+        Dict containing company_id, department_id, role, holding_id
+
+    Raises:
+        ValueError: If link is invalid, expired, or already used
+        ConnectionFailure: If database connection fails
+    """
+    client = None
+    try:
+        client = get_mongodb_connection()
+        db = client[settings.DATABASE_NAME]
+        links_collection = db[settings.USER_LINKS_COLLECTION]
+
+        link_doc = links_collection.find_one({"link_id": link_id})
+        if not link_doc:
+            raise ValueError("Invalid registration link")
+
+        if link_doc.get("is_used", False):
+            raise ValueError("Registration link has already been used")
+
+        if link_doc["expires_at"] < datetime.utcnow():
+            raise ValueError("Registration link has expired")
+
+        logger.info(f"Verified registration link with ID: {link_id}")
+
+        return {
+            "company_id": link_doc["company_id"],
+            "department_id": link_doc.get("department_id"),
+            "holding_id": link_doc.get("holding_id"),
+            "role": link_doc["role"]
+        }
+
+    except ValueError:
+        raise
+    except (ConnectionFailure, ServerSelectionTimeoutError) as e:
+        logger.error(f"Database connection error while verifying link: {str(e)}")
+        raise ConnectionFailure(f"Failed to verify link: {str(e)}")
+    except Exception as e:
+        logger.error(f"Unexpected error while verifying link: {str(e)}")
+        raise Exception(f"Failed to verify link: {str(e)}")
+    finally:
+        if client:
+            client.close()
+
+
+def register_pending_user(registration_data: PendingUserCreate) -> PendingUserResponse:
+    """
+    Register a new user via registration link, creating a pending user application.
+
+    The user will be added to pending_users collection and must be approved
+    by an admin before being added to the users collection.
+
+    Args:
+        registration_data: User registration data from form
+
+    Returns:
+        PendingUserResponse: Created pending user information
+
+    Raises:
+        ValueError: If link is invalid, passwords don't match, or email exists
+        ConnectionFailure: If database connection fails
+    """
+    client = None
+    try:
+        # Validate passwords match
+        if registration_data.password != registration_data.password_confirm:
+            raise ValueError("Passwords do not match")
+
+        # Verify registration link
+        link_info = verify_registration_link(registration_data.link_id)
+
+        # Validate and normalize email
+        normalized_email = validate_email_format(registration_data.email.strip().lower())
+
+        client = get_mongodb_connection()
+        db = client[settings.DATABASE_NAME]
+
+        # Check if email already exists in users or pending_users
+        users_collection = db[settings.USERS_COLLECTION]
+        pending_users_collection = db[settings.PENDING_USERS_COLLECTION]
+
+        if users_collection.find_one({"email": normalized_email}):
+            raise ValueError(f"User with email {normalized_email} already exists")
+
+        existing_pending = pending_users_collection.find_one({
+            "email": normalized_email,
+            "status": "pending"
+        })
+        if existing_pending:
+            raise ValueError(f"A pending registration already exists for email {normalized_email}")
+
+        # Hash password
+        hashed_password = hash_password(registration_data.password)
+
+        # Create pending user document
+        current_time = datetime.utcnow()
+        pending_user_doc = {
+            "email": normalized_email,
+            "full_name": registration_data.full_name,
+            "hashed_password": hashed_password,
+            "company_id": link_info["company_id"],
+            "department_id": link_info.get("department_id"),
+            "holding_id": link_info.get("holding_id"),
+            "role": link_info["role"],
+            "status": "pending",
+            "created_at": current_time,
+            "updated_at": current_time,
+            "link_id": registration_data.link_id
+        }
+
+        # Insert pending user
+        result = pending_users_collection.insert_one(pending_user_doc)
+
+        # Mark link as used
+        links_collection = db[settings.USER_LINKS_COLLECTION]
+        links_collection.update_one(
+            {"link_id": registration_data.link_id},
+            {"$set": {"is_used": True, "used_at": current_time}}
+        )
+
+        logger.info(
+            f"Created pending user registration for {normalized_email} "
+            f"with ID {result.inserted_id}"
+        )
+
+        return PendingUserResponse(
+            id=str(result.inserted_id),
+            email=normalized_email,
+            full_name=registration_data.full_name,
+            company_id=link_info["company_id"],
+            department_id=link_info.get("department_id"),
+            role=link_info["role"],
+            status="pending",
+            created_at=current_time,
+            updated_at=current_time
+        )
+
+    except ValueError:
+        raise
+    except (ConnectionFailure, ServerSelectionTimeoutError) as e:
+        logger.error(f"Database connection error during user registration: {str(e)}")
+        raise ConnectionFailure(f"Failed to register user: {str(e)}")
+    except Exception as e:
+        logger.error(f"Unexpected error during user registration: {str(e)}")
+        raise Exception(f"Failed to register user: {str(e)}")
+    finally:
+        if client:
+            client.close()
+
+
+
+
+
+def list_pending_users(admin_user: dict) -> list[PendingUserResponse]:
+    """
+    List pending user registrations for admin approval.
+
+    Filters based on admin's role:
+    - superadmin: sees all pending users
+    - admin: sees pending users for their company
+
+    Args:
+        admin_user: Admin user dict from authentication
+
+    Returns:
+        List of pending users
+
+    Raises:
+        ValueError: If admin doesn't have required permissions
+        ConnectionFailure: If database connection fails
+    """
+    client = None
+    try:
+        user_role = admin_user.get("role")
+        user_company_id = admin_user.get("company_id")
+
+        client = get_mongodb_connection()
+        db = client[settings.DATABASE_NAME]
+        pending_users_collection = db[settings.PENDING_USERS_COLLECTION]
+
+        # Build query based on role
+        query = {"status": "pending"}
+
+        if user_role == "superadmin":
+            # Superadmin sees all pending users
+            pass
+        elif user_role == "admin":
+            # Admin sees pending users for their company
+            if not user_company_id:
+                raise ValueError("Admin user must have a company_id")
+            query["company_id"] = user_company_id
+        else:
+            raise ValueError(f"User with role {user_role} cannot view pending users")
+
+        # Fetch pending users
+        pending_users = list(pending_users_collection.find(query).sort("created_at", -1))
+
+        # Convert to response models
+        result = []
+        for user in pending_users:
+            result.append(PendingUserResponse(
+                id=str(user["_id"]),
+                email=user["email"],
+                full_name=user["full_name"],
+                company_id=user["company_id"],
+                department_id=user.get("department_id"),
+                role=user["role"],
+                status=user["status"],
+                created_at=user["created_at"],
+                updated_at=user["updated_at"]
+            ))
+
+        logger.info(f"Retrieved {len(result)} pending users for admin {admin_user.get('email')}")
+        return result
+
+    except ValueError:
+        raise
+    except (ConnectionFailure, ServerSelectionTimeoutError) as e:
+        logger.error(f"Database connection error while listing pending users: {str(e)}")
+        raise ConnectionFailure(f"Failed to list pending users: {str(e)}")
+    except Exception as e:
+        logger.error(f"Unexpected error while listing pending users: {str(e)}")
+        raise Exception(f"Failed to list pending users: {str(e)}")
+    finally:
+        if client:
+            client.close()
+
+
+def approve_pending_user(pending_user_id: str, admin_user: dict):
+    """
+    Approve pending user and move them to the users collection.
+
+    Args:
+        pending_user_id: MongoDB ObjectId of pending user
+        admin_user: Admin user performing the approval
+
+    Returns:
+        UserCreateResponse: Approved user information
+
+    Raises:
+        ValueError: If pending user not found or admin lacks permission
+        ConnectionFailure: If database connection fails
+    """
+    client = None
+    try:
+        if not ObjectId.is_valid(pending_user_id):
+            raise ValueError(f"Invalid pending_user_id format: {pending_user_id}")
+
+        client = get_mongodb_connection()
+        db = client[settings.DATABASE_NAME]
+        pending_users_collection = db[settings.PENDING_USERS_COLLECTION]
+        users_collection = db[settings.USERS_COLLECTION]
+
+        # Fetch pending user
+        pending_user = pending_users_collection.find_one({"_id": ObjectId(pending_user_id)})
+        if not pending_user:
+            raise ValueError(f"Pending user not found with ID: {pending_user_id}")
+
+        if pending_user["status"] != "pending":
+            raise ValueError(f"User application is not in pending status (current: {pending_user['status']})")
+
+        # Check admin has permission to approve
+        admin_role = admin_user.get("role")
+        admin_company_id = admin_user.get("company_id")
+
+        if admin_role == "admin":
+            # Admin can only approve users for their company
+            if pending_user["company_id"] != admin_company_id:
+                raise ValueError("You can only approve users for your own company")
+        elif admin_role != "superadmin":
+            raise ValueError(f"User with role {admin_role} cannot approve pending users")
+
+        # Check if email already exists in users (double-check)
+        if users_collection.find_one({"email": pending_user["email"]}):
+            raise ValueError(f"User with email {pending_user['email']} already exists")
+
+        # Create user document
+        current_time = datetime.utcnow()
+        user_doc = {
+            "email": pending_user["email"],
+            "full_name": pending_user["full_name"],
+            "hashed_password": pending_user["hashed_password"],
+            "company_id": pending_user.get("company_id"),
+            "department_id": pending_user.get("department_id"),
+            "holding_id": pending_user.get("holding_id"),
+            "role": pending_user["role"],
+            "is_active": True,
+            "created_at": current_time,
+            "updated_at": current_time
+        }
+
+        # Insert into users collection
+        result = users_collection.insert_one(user_doc)
+
+        # Update pending user status to approved
+        pending_users_collection.update_one(
+            {"_id": ObjectId(pending_user_id)},
+            {
+                "$set": {
+                    "status": "approved",
+                    "approved_by": str(admin_user.get("_id")),
+                    "approved_at": current_time,
+                    "updated_at": current_time
+                }
+            }
+        )
+
+        logger.info(
+            f"Approved pending user {pending_user['email']} (ID: {pending_user_id}) "
+            f"by admin {admin_user.get('email')}"
+        )
+
+        return UserCreateResponse(
+            id=str(result.inserted_id),
+            email=user_doc["email"],
+            role=user_doc["role"],
+            full_name=user_doc["full_name"],
+            is_active=user_doc["is_active"],
+            created_at=user_doc["created_at"],
+            updated_at=user_doc["updated_at"],
+            temporary_password="N/A"
+        )
+
+    except ValueError:
+        raise
+    except (ConnectionFailure, ServerSelectionTimeoutError) as e:
+        logger.error(f"Database connection error while approving user: {str(e)}")
+        raise ConnectionFailure(f"Failed to approve user: {str(e)}")
+    except Exception as e:
+        logger.error(f"Unexpected error while approving user: {str(e)}")
+        raise Exception(f"Failed to approve user: {str(e)}")
+    finally:
+        if client:
+            client.close()
+
+
+def reject_pending_user(pending_user_id: str, admin_user: dict) -> dict:
+    """
+    Reject pending user registration.
+
+    Args:
+        pending_user_id: MongoDB ObjectId of pending user
+        admin_user: Admin user performing the rejection
+
+    Returns:
+        Dict with success message
+
+    Raises:
+        ValueError: If pending user not found or admin lacks permission
+        ConnectionFailure: If database connection fails
+    """
+    client = None
+    try:
+        if not ObjectId.is_valid(pending_user_id):
+            raise ValueError(f"Invalid pending_user_id format: {pending_user_id}")
+
+        client = get_mongodb_connection()
+        db = client[settings.DATABASE_NAME]
+        pending_users_collection = db[settings.PENDING_USERS_COLLECTION]
+
+        # Fetch pending user
+        pending_user = pending_users_collection.find_one({"_id": ObjectId(pending_user_id)})
+        if not pending_user:
+            raise ValueError(f"Pending user not found with ID: {pending_user_id}")
+
+        if pending_user["status"] != "pending":
+            raise ValueError(f"User application is not in pending status (current: {pending_user['status']})")
+
+        # Check admin has permission to reject
+        admin_role = admin_user.get("role")
+        admin_company_id = admin_user.get("company_id")
+
+        if admin_role == "admin":
+            # Admin can only reject users for their company
+            if pending_user["company_id"] != admin_company_id:
+                raise ValueError("You can only reject users for your own company")
+        elif admin_role != "superadmin":
+            raise ValueError(f"User with role {admin_role} cannot reject pending users")
+
+        # Update pending user status to rejected
+        current_time = datetime.utcnow()
+        pending_users_collection.update_one(
+            {"_id": ObjectId(pending_user_id)},
+            {
+                "$set": {
+                    "status": "rejected",
+                    "rejected_by": str(admin_user.get("_id")),
+                    "rejected_at": current_time,
+                    "updated_at": current_time
+                }
+            }
+        )
+
+        logger.info(
+            f"Rejected pending user {pending_user['email']} (ID: {pending_user_id}) "
+            f"by admin {admin_user.get('email')}"
+        )
+
+        return {
+            "message": "User registration rejected successfully",
+            "pending_user_id": pending_user_id,
+            "email": pending_user["email"]
+        }
+
+    except ValueError:
+        raise
+    except (ConnectionFailure, ServerSelectionTimeoutError) as e:
+        logger.error(f"Database connection error while rejecting user: {str(e)}")
+        raise ConnectionFailure(f"Failed to reject user: {str(e)}")
+    except Exception as e:
+        logger.error(f"Unexpected error while rejecting user: {str(e)}")
+        raise Exception(f"Failed to reject user: {str(e)}")
+    finally:
+        if client:
+            client.close()
+
+
+def list_users_with_filter(admin_user: dict, status_filter: str = "active"):
+    """
+    List users with status filter (active, blocked).
+
+    Args:
+        admin_user: Admin user dict
+        status_filter: "active" or "blocked"
+
+    Returns:
+        List of users matching filter
+
+    Raises:
+        ValueError: If invalid filter or admin lacks permission
+        ConnectionFailure: If database connection fails
+    """
+    from .models import UserResponse
+
+    client = None
+    try:
+        if status_filter not in ["active", "blocked"]:
+            raise ValueError(f"Invalid status filter: {status_filter}. Must be 'active' or 'blocked'")
+
+        client = get_mongodb_connection()
+        db = client[settings.DATABASE_NAME]
+
+        admin_role = admin_user.get("role")
+        admin_company_id = admin_user.get("company_id")
+
+        # Query regular users
+        users_collection = db[settings.USERS_COLLECTION]
+
+        query = {}
+        if status_filter == "active":
+            query["is_active"] = True
+        elif status_filter == "blocked":
+            query["is_active"] = False
+
+        # Filter by admin's scope
+        if admin_role == "admin":
+            if not admin_company_id:
+                raise ValueError("Admin user must have a company_id")
+            query["company_id"] = admin_company_id
+        elif admin_role != "superadmin":
+            raise ValueError(f"User with role {admin_role} cannot list users")
+
+        # Fetch users
+        users = list(users_collection.find(query).sort("created_at", -1))
+
+        # Convert to response models
+        result = []
+        for user in users:
+            result.append(UserResponse(
+                id=str(user["_id"]),
+                email=user["email"],
+                role=user["role"],
+                full_name=user.get("full_name"),
+                is_active=user.get("is_active", True),
+                created_at=user["created_at"],
+                updated_at=user["updated_at"]
+            ))
+
+        logger.info(f"Retrieved {len(result)} users with filter '{status_filter}' for admin {admin_user.get('email')}")
+        return result
+
+    except ValueError:
+        raise
+    except (ConnectionFailure, ServerSelectionTimeoutError) as e:
+        logger.error(f"Database connection error while listing users: {str(e)}")
+        raise ConnectionFailure(f"Failed to list users: {str(e)}")
+    except Exception as e:
+        logger.error(f"Unexpected error while listing users: {str(e)}")
+        raise Exception(f"Failed to list users: {str(e)}")
+    finally:
+        if client:
+            client.close()
