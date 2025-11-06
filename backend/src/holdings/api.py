@@ -1,9 +1,10 @@
-from fastapi import APIRouter, HTTPException, status, Path
+from fastapi import APIRouter, HTTPException, status, Path, Depends
 from fastapi.responses import JSONResponse
 from pymongo.errors import ConnectionFailure
 import logging
 
 from .models import HoldingCreate, HoldingUpdate, HoldingResponse, HoldingListResponse
+from ..auth.dependencies import get_current_user, require_admin
 from .utils import (
     create_holding as db_create_holding,
     get_all_holdings as db_get_all_holdings,
@@ -20,7 +21,7 @@ router = APIRouter(prefix="/holdings", tags=["holdings"])
 
 
 @router.post("/create", response_model=HoldingResponse, status_code=status.HTTP_201_CREATED)
-def create_holding_endpoint(holding_data: HoldingCreate):
+def create_holding_endpoint(holding_data: HoldingCreate, current_admin: dict = Depends(require_admin)):
     """
     Create a new holding.
 
@@ -79,7 +80,7 @@ def create_holding_endpoint(holding_data: HoldingCreate):
 
 
 @router.get("/list", response_model=HoldingListResponse)
-def list_holdings_endpoint():
+def list_holdings_endpoint(current_user: dict = Depends(get_current_user)):
     """
     Get all holdings.
 
@@ -137,7 +138,8 @@ def list_holdings_endpoint():
 
 @router.get("/{holding_id}", response_model=HoldingResponse)
 def get_holding_endpoint(
-    holding_id: str = Path(..., description="MongoDB ObjectId of the holding")
+    holding_id: str = Path(..., description="MongoDB ObjectId of the holding"),
+    current_user: dict = Depends(get_current_user)
 ):
     """
     Get a specific holding by ID.
@@ -197,7 +199,8 @@ def get_holding_endpoint(
 @router.put("/{holding_id}", response_model=HoldingResponse)
 def rename_holding_endpoint(
     holding_id: str = Path(..., description="MongoDB ObjectId of the holding"),
-    holding_data: HoldingUpdate = None
+    holding_data: HoldingUpdate = None,
+    current_admin: dict = Depends(require_admin)
 ):
     """
     Update/rename a holding.
@@ -269,7 +272,8 @@ def rename_holding_endpoint(
 
 @router.delete("/{holding_id}", status_code=status.HTTP_200_OK)
 def delete_holding_endpoint(
-    holding_id: str = Path(..., description="MongoDB ObjectId of the holding")
+    holding_id: str = Path(..., description="MongoDB ObjectId of the holding"),
+    current_admin: dict = Depends(require_admin)
 ):
     """
     Delete a holding permanently.

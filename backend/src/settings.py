@@ -55,9 +55,10 @@ class Settings(BaseSettings):
     MAX_TEXT_PREVIEW: int = 100000
     
     # Authentication Configuration
-    SECRET_KEY: str = "your-secret-key-change-this-in-production"
+    SECRET_KEY: str = os.getenv("SECRET_KEY", "AjR4TrX1Xj0Y-vcXtyyZ_d-wxUUSs5zJtHvkDriR_5g")
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 300
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30  # 30 minutes for access token
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7  # 7 days for refresh token
     
     # MongoDB Configuration
     MONGODB_URL: str = os.getenv("MONGODB_URL", "mongodb://localhost:27017")
@@ -65,6 +66,8 @@ class Settings(BaseSettings):
     USERS_COLLECTION: str = os.getenv("USERS_COLLECTION", "Choco_users")
     HOLDINGS_COLLECTION: str = os.getenv("HOLDINGS_COLLECTION", "holdings")
     COMPANIES_COLLECTION: str = os.getenv("COMPANIES_COLLECTION", "companies")
+    DEPARTMENTS_COLLECTION: str = os.getenv("DEPARTMENTS_COLLECTION", "departments")
+    FOLDERS_COLLECTION: str = os.getenv("FOLDERS_COLLECTION", "folders")
 
     #S3 config
     S3_ENDPOINT: str = os.getenv("S3_ENDPOINT")

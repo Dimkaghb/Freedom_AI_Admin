@@ -1,10 +1,11 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Depends
 from fastapi.responses import JSONResponse
 from pymongo.errors import ConnectionFailure
 import logging
 
 from .models import UserCreate, UserCreateResponse
 from .utils import add_user_by_admin
+from ..auth.dependencies import require_admin
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -14,7 +15,7 @@ router = APIRouter(prefix="/users", tags=["users"])
 
 
 @router.post("/create", response_model=UserCreateResponse, status_code=status.HTTP_201_CREATED)
-async def create_user_endpoint(user_data: UserCreate):
+async def create_user_endpoint(user_data: UserCreate, current_admin: dict = Depends(require_admin)):
     """
     Create a new user by admin.
     

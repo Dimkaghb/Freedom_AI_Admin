@@ -324,7 +324,7 @@ function RecentRequestsTable() {
  * Адаптивная компоновка с мобильным подходом
  * Реализует правильные отступы, типографику и стандарты доступности
  */
-export const Dashboard = () => {
+export const HoldiingAdminDashboard = () => {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedTimeRange, setSelectedTimeRange] = useState<string>('Последние 3 месяца');
   const { user, logout } = useAuth();

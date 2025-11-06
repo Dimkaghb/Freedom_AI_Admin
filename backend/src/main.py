@@ -7,6 +7,8 @@ from .users.api import router as users_router
 from .auth.api import router as auth_router
 from .holdings.api import router as holdings_router
 from .companies.api import router as companies_router
+from .departments.api import router as departments_router
+from .knowledge_base.api import router as knowledge_base_router
 
 # Configure logging
 logging.basicConfig(
@@ -35,6 +37,8 @@ app.include_router(users_router)
 app.include_router(auth_router)
 app.include_router(holdings_router)
 app.include_router(companies_router)
+app.include_router(departments_router)
+app.include_router(knowledge_base_router)
 
 @app.get("/")
 async def root():

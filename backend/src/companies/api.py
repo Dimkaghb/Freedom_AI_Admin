@@ -1,10 +1,11 @@
-from fastapi import APIRouter, HTTPException, status, Path, Query
+from fastapi import APIRouter, HTTPException, status, Path, Query, Depends
 from fastapi.responses import JSONResponse
 from pymongo.errors import ConnectionFailure
 import logging
 from typing import Optional
 
 from .models import CompanyCreate, CompanyUpdate, CompanyResponse, CompanyListResponse
+from ..auth.dependencies import get_current_user, require_admin
 from .utils import (
     create_company as db_create_company,
     get_all_companies as db_get_all_companies,
@@ -21,7 +22,7 @@ router = APIRouter(prefix="/companies", tags=["companies"])
 
 
 @router.post("/create", response_model=CompanyResponse, status_code=status.HTTP_201_CREATED)
-def create_company_endpoint(company_data: CompanyCreate):
+def create_company_endpoint(company_data: CompanyCreate, current_admin: dict = Depends(require_admin)):
     """
     Create a new company.
 
@@ -85,7 +86,8 @@ def create_company_endpoint(company_data: CompanyCreate):
 
 @router.get("/list", response_model=CompanyListResponse)
 def list_companies_endpoint(
-    holding_id: Optional[str] = Query(None, description="Filter by holding ID")
+    holding_id: Optional[str] = Query(None, description="Filter by holding ID"),
+    current_user: dict = Depends(get_current_user)
 ):
     """
     Get all companies, optionally filtered by holding.
@@ -149,7 +151,8 @@ def list_companies_endpoint(
 
 @router.get("/{company_id}", response_model=CompanyResponse)
 def get_company_endpoint(
-    company_id: str = Path(..., description="MongoDB ObjectId of the company")
+    company_id: str = Path(..., description="MongoDB ObjectId of the company"),
+    current_user: dict = Depends(get_current_user)
 ):
     """
     Get a specific company by ID.
@@ -209,7 +212,8 @@ def get_company_endpoint(
 @router.put("/{company_id}", response_model=CompanyResponse)
 def update_company_endpoint(
     company_id: str = Path(..., description="MongoDB ObjectId of the company"),
-    company_data: CompanyUpdate = None
+    company_data: CompanyUpdate = None,
+    current_admin: dict = Depends(require_admin)
 ):
     """
     Update a company.
@@ -283,7 +287,8 @@ def update_company_endpoint(
 
 @router.delete("/{company_id}", status_code=status.HTTP_200_OK)
 def delete_company_endpoint(
-    company_id: str = Path(..., description="MongoDB ObjectId of the company")
+    company_id: str = Path(..., description="MongoDB ObjectId of the company"),
+    current_admin: dict = Depends(require_admin)
 ):
     """
     Delete a company permanently.

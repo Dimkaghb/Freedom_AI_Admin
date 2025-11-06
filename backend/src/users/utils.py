@@ -11,7 +11,7 @@ import bcrypt
 from email_validator import validate_email, EmailNotValidError
 
 from ..settings import settings
-from .models import UserInDB, UserCreateResponse
+from .models import UserInDB, UserCreateResponse, CreateUserLink
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -264,3 +264,38 @@ def add_user(user_email: str, user_role: str):
         return result
     except Exception as e:
         raise ValueError(f"Error adding user to database: {e}")
+    
+
+def create_registration_link(CreateUserLink: CreateUserLink) -> str:
+    user_link_id = secrets.token_urlsafe(16)
+    # Here you would typically store the link in the database with an expiration time
+    logger.info(f"Created registration link with ID: {user_link_id} for company ID: {CreateUserLink.company_id}")
+    db = get_mongodb_connection()[settings.DATABASE_NAME]
+    links_collection = db[settings.USER_LINKS_COLLECTION]
+    link_doc = {
+        "link_id": user_link_id,
+        "company_id": CreateUserLink.company_id,
+        "department_id": CreateUserLink.department_id,
+        "role": CreateUserLink.role,
+        "created_at": datetime.utcnow(),
+        "expires_at": datetime.utcnow() + settings.USER_LINK_EXPIRATION_DELTA
+    }
+    links_collection.insert_one(link_doc)
+    registration_url = f"{settings.FRONTEND_URL}/register?link_id={user_link_id}"
+    return registration_url
+
+def verify_registration_link(link_id: str) -> Dict[str, Any]:
+    db = get_mongodb_connection()[settings.DATABASE_NAME]
+    links_collection = db[settings.USER_LINKS_COLLECTION]
+    link_doc = links_collection.find_one({"link_id": link_id})
+    if not link_doc:
+        raise ValueError("Invalid registration link")
+    if link_doc["expires_at"] < datetime.utcnow():
+        raise ValueError("Registration link has expired")
+    logger.info(f"Verified registration link with ID: {link_id}")
+    return {
+        "company_id": link_doc["company_id"],
+        "department_id": link_doc.get("department_id"),
+        "role": link_doc["role"]
+    }
+
