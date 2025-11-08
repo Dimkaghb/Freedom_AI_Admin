@@ -51,18 +51,18 @@ interface VisitorsAreaChartProps {
 
 // Sample chart data - can be replaced with real data
 const defaultChartData: ChartDataPoint[] = [
-  { month: "January", desktop: 186 },
-  { month: "February", desktop: 305 },
-  { month: "March", desktop: 237 },
-  { month: "April", desktop: 73 },
-  { month: "May", desktop: 209 },
-  { month: "June", desktop: 214 },
+  { month: "Январь", desktop: 186 },
+  { month: "Февраль", desktop: 305 },
+  { month: "Март", desktop: 237 },
+  { month: "Апрель", desktop: 73 },
+  { month: "Май", desktop: 209 },
+  { month: "Июнь", desktop: 214 },
 ]
 
 // Chart configuration for styling and labels
 const chartConfig = {
   desktop: {
-    label: "Visitors",
+    label: "Посетители",
     color: "#6b7280", // Grey color
   },
 } satisfies ChartConfig
@@ -78,10 +78,10 @@ const chartConfig = {
  * @param description - Custom description for the chart (optional)
  * @param className - Additional CSS classes for styling (optional)
  */
-export function VisitorsAreaChart({ 
+export function VisitorsAreaChart({
   data = defaultChartData,
-  title = "Visitors Overview",
-  description = "Showing total visitors for the last 6 months",
+  title = "Обзор посетителей",
+  description = "Показывает общее количество посетителей за последние 6 месяцев",
   className = ""
 }: VisitorsAreaChartProps) {
   // Calculate trend percentage (simplified calculation)
@@ -136,11 +136,11 @@ export function VisitorsAreaChart({
         <div className="flex w-full items-start gap-2 text-sm">
           <div className="grid gap-2">
             <div className="flex items-center gap-2 leading-none font-medium">
-              Trending {parseFloat(trendPercentage) >= 0 ? 'up' : 'down'} by {Math.abs(parseFloat(trendPercentage))}% this month 
+              Тренд {parseFloat(trendPercentage) >= 0 ? 'вверх' : 'вниз'} на {Math.abs(parseFloat(trendPercentage))}% в этом месяце
               <TrendingUp className="h-4 w-4" />
             </div>
             <div className="text-muted-foreground flex items-center gap-2 leading-none">
-              January - June 2024
+              Январь - Июнь 2024
             </div>
           </div>
         </div>

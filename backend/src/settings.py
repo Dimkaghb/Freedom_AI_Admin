@@ -19,11 +19,7 @@ class Settings(BaseSettings):
     
     # CORS Configuration
     ALLOWED_ORIGINS: List[str] = [
-        "http://localhost:9002",
-        "http://localhost:9003",  # Added missing port
-        "http://localhost:3000",
-        "http://127.0.0.1:9002",
-        "http://127.0.0.1:9003",  # Added missing port
+        "http://localhost:9002",  # Added missing port
         "http://127.0.0.1:3000",
         "http://frontend:9002",  # Docker container name
         "http://choco-frontend:9002",  # Docker container name from compose
@@ -68,7 +64,7 @@ class Settings(BaseSettings):
     
     # MongoDB Configuration
     MONGODB_URL: str = os.getenv("MONGODB_URL", "mongodb://localhost:27017")
-    DATABASE_NAME: str = os.getenv("DATABASE_NAME", "Choco")
+    DATABASE_NAME: str = os.getenv("DATABASE_NAME", "\hoco")
     USERS_COLLECTION: str = os.getenv("USERS_COLLECTION", "Choco_users")
     HOLDINGS_COLLECTION: str = os.getenv("HOLDINGS_COLLECTION", "holdings")
     COMPANIES_COLLECTION: str = os.getenv("COMPANIES_COLLECTION", "companies")
@@ -83,11 +79,20 @@ class Settings(BaseSettings):
     S3_ACCESS_KEY: str = os.getenv("S3_ACCESS_KEY")
     S3_SECRET_KEY: str = os.getenv("S3_SECRET_KEY")
     S3_REGION: str = os.getenv("S3_REGION")
-    
+
+    # SMTP Email Configuration
+    SMTP_HOST: str = os.getenv("SMTP_HOST", "smtp.gmail.com")
+    SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
+    SMTP_USERNAME: str = os.getenv("SMTP_USERNAME", "")
+    SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "")
+    SMTP_USE_TLS: bool = os.getenv("SMTP_USE_TLS", "True").lower() == "true"
+    SMTP_SENDER_EMAIL: str = os.getenv("SMTP_SENDER_EMAIL", "")
+    SMTP_SENDER_NAME: str = os.getenv("SMTP_SENDER_NAME", "FreedomAIAdmin")
+
     model_config = {
         "env_file": ".env",
         "case_sensitive": True,
-        "extra": "ignore"   
+        "extra": "ignore"
     }
 
 

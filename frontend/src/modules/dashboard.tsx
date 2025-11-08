@@ -354,10 +354,10 @@ export const Dashboard = () => {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="space-y-1">
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
-              Dashboard
+              Панель управления
             </h1>
             <p className="text-sm text-muted-foreground">
-              Welcome back, {user?.name || user?.email}! Here's what's happening with your projects.
+              С возвращением, {user?.name || user?.email}! Вот что происходит с вашими проектами.
             </p>
           </div>
 
@@ -366,11 +366,11 @@ export const Dashboard = () => {
             <div className="relative w-full sm:min-w-[300px]">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Search..."
+                placeholder="Поиск..."
                 value={searchQuery}
                 onChange={handleSearchChange}
                 className="pl-9 w-full"
-                aria-label="Search dashboard"
+                aria-label="Поиск по панели управления"
               />
             </div>
             <Button

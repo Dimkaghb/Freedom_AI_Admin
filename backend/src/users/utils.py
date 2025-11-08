@@ -22,6 +22,7 @@ from .models import (
     PendingUserInDB
 )
 from bson import ObjectId
+from ..smtp.service import get_email_service
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -697,6 +698,38 @@ def approve_pending_user(pending_user_id: str, admin_user: dict):
             f"by admin {admin_user.get('email')}"
         )
 
+        # Send approval email
+        try:
+            email_service = get_email_service()
+            if email_service:
+                # Get company name
+                companies_collection = db[settings.COMPANIES_COLLECTION]
+                company = companies_collection.find_one({"_id": ObjectId(pending_user["company_id"])})
+                company_name = company.get("name", "Unknown Company") if company else "Unknown Company"
+
+                # Get department name if exists
+                department_name = None
+                if pending_user.get("department_id"):
+                    departments_collection = db[settings.DEPARTMENTS_COLLECTION]
+                    department = departments_collection.find_one({"_id": ObjectId(pending_user["department_id"])})
+                    department_name = department.get("name") if department else None
+
+                # Send approval email
+                email_service.send_user_approval_email(
+                    to_email=pending_user["email"],
+                    user_name=pending_user["full_name"],
+                    company_name=company_name,
+                    role=pending_user["role"],
+                    department_name=department_name,
+                    login_url=settings.FRONTEND_URL
+                )
+                logger.info(f"Approval email sent to {pending_user['email']}")
+            else:
+                logger.warning("Email service not configured, skipping approval email")
+        except Exception as e:
+            logger.error(f"Failed to send approval email to {pending_user['email']}: {str(e)}")
+            # Don't fail the approval if email fails
+
         return UserCreateResponse(
             id=str(result.inserted_id),
             email=user_doc["email"],
@@ -782,6 +815,28 @@ def reject_pending_user(pending_user_id: str, admin_user: dict) -> dict:
             f"Rejected pending user {pending_user['email']} (ID: {pending_user_id}) "
             f"by admin {admin_user.get('email')}"
         )
+
+        # Send rejection email
+        try:
+            email_service = get_email_service()
+            if email_service:
+                # Get company name
+                companies_collection = db[settings.COMPANIES_COLLECTION]
+                company = companies_collection.find_one({"_id": ObjectId(pending_user["company_id"])})
+                company_name = company.get("name", "Unknown Company") if company else "Unknown Company"
+
+                # Send rejection email
+                email_service.send_user_rejection_email(
+                    to_email=pending_user["email"],
+                    user_name=pending_user["full_name"],
+                    company_name=company_name
+                )
+                logger.info(f"Rejection email sent to {pending_user['email']}")
+            else:
+                logger.warning("Email service not configured, skipping rejection email")
+        except Exception as e:
+            logger.error(f"Failed to send rejection email to {pending_user['email']}: {str(e)}")
+            # Don't fail the rejection if email fails
 
         return {
             "message": "User registration rejected successfully",

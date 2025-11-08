@@ -57,7 +57,7 @@ export const AddUserPage = () => {
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent"></div>
-          <p className="mt-2 text-sm text-gray-600">Loading...</p>
+          <p className="mt-2 text-sm text-gray-600">Загрузка...</p>
         </div>
       </div>
     );
@@ -68,8 +68,8 @@ export const AddUserPage = () => {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-red-600">Not Authenticated</h1>
-          <p className="text-gray-600 mt-2">Please login to access this page.</p>
+          <h1 className="text-2xl font-bold text-red-600">Не авторизован</h1>
+          <p className="text-gray-600 mt-2">Пожалуйста, войдите в систему для доступа к этой странице.</p>
         </div>
       </div>
     );
