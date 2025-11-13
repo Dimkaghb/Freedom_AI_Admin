@@ -78,20 +78,34 @@ interface ChartDataPoint {
 
 interface DashboardStats {
   /** Количество холдингов */
-  holdings: number;
+  holdings: number | null;
   /** Количество зарегистрированных компаний */
-  companies: number;
+  companies: number | null;
   /** Общее количество пользователей */
-  totalUsers: number;
+  totalUsers: number | null;
   /** Количество заявок */
-  requests: number;
+  requests: number | null;
 }
+
+// Функция для преобразования роли в читаемый формат
+const getRoleDisplayName = (role: string): string => {
+  const roleMap: Record<string, string> = {
+    'holding_admin': 'Администратор Холдинга',
+    'company_admin': 'Администратор Компании',
+    'department_director': 'Директор Отдела',
+    'employee': 'Сотрудник'
+  };
+  return roleMap[role] || role;
+};
 
 /**
  * Structure Management Component
  * Компонент для управления структурами организации
  */
 function StructureManagement() {
+  // Данные должны загружаться из API
+  const holdingsCount = null;
+  const companiesCount = null;
   return (
     <Card className="w-full border-gray-200 bg-white">
       <CardHeader className="pb-4">
@@ -117,7 +131,9 @@ function StructureManagement() {
                 <h4 className="text-sm font-medium text-gray-900">Холдинги</h4>
                 <Building className="h-4 w-4 text-gray-500" />
               </div>
-              <p className="text-2xl font-bold text-gray-900">3</p>
+              <p className="text-2xl font-bold text-gray-900">
+                {holdingsCount !== null ? holdingsCount : '-'}
+              </p>
               <p className="text-xs text-gray-500">Активных структур</p>
             </div>
             <div className="p-4 border border-gray-200 rounded-lg bg-gray-50">
@@ -125,7 +141,9 @@ function StructureManagement() {
                 <h4 className="text-sm font-medium text-gray-900">Компании</h4>
                 <Building2 className="h-4 w-4 text-gray-500" />
               </div>
-              <p className="text-2xl font-bold text-gray-900">12</p>
+              <p className="text-2xl font-bold text-gray-900">
+                {companiesCount !== null ? companiesCount : '-'}
+              </p>
               <p className="text-xs text-gray-500">В составе холдингов</p>
             </div>
           </div>
@@ -332,10 +350,10 @@ export const Dashboard = () => {
 
   // Пустые данные - должны загружаться из API
   const dashboardStats: DashboardStats = {
-    holdings: 3,
-    companies: 12,
-    totalUsers: 240,
-    requests: 4
+    holdings: null,
+    companies: null,
+    totalUsers: null,
+    requests: null
   };
 
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -347,15 +365,23 @@ export const Dashboard = () => {
     navigate('/');
   };
 
+  // Получаем отображаемое название роли
+  const userRole = user?.role ? getRoleDisplayName(user.role) : 'Пользователь';
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
         {/* Header Section - Responsive layout */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="space-y-1">
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
-              Панель управления
-            </h1>
+            <div className="flex items-center gap-3 flex-wrap">
+              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
+                Панель управления
+              </h1>
+              <Badge className="bg-gray-900 text-white hover:bg-gray-800 text-xs font-medium px-3 py-1">
+                {userRole}
+              </Badge>
+            </div>
             <p className="text-sm text-muted-foreground">
               С возвращением, {user?.name || user?.email}! Вот что происходит с вашими проектами.
             </p>
@@ -389,33 +415,25 @@ export const Dashboard = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
           <StatCard
             title="Холдинги"
-            value={dashboardStats.holdings}
-            change={0}
-            trend="neutral"
+            value={dashboardStats.holdings !== null ? dashboardStats.holdings : '-'}
             description="Данные загружаются"
             icon={<Building className="h-4 w-4" />}
           />
           <StatCard
             title="Компании"
-            value={dashboardStats.companies}
-            change={0}
-            trend="neutral"
+            value={dashboardStats.companies !== null ? dashboardStats.companies : '-'}
             description="Данные загружаются"
             icon={<Building2 className="h-4 w-4" />}
           />
           <StatCard
             title="Пользователи"
-            value={dashboardStats.totalUsers}
-            change={0}
-            trend="neutral"
+            value={dashboardStats.totalUsers !== null ? dashboardStats.totalUsers : '-'}
             description="Данные загружаются"
             icon={<Users className="h-4 w-4" />}
           />
           <StatCard
             title="Заявки"
-            value={dashboardStats.requests}
-            change={0}
-            trend="neutral"
+            value={dashboardStats.requests !== null ? dashboardStats.requests : '-'}
             description="Данные загружаются"
             icon={<FileText className="h-4 w-4" />}
           />

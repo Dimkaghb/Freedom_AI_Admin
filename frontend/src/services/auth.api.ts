@@ -10,7 +10,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  role: 'admin' | 'user';
+  role: 'holding_admin' | 'company_admin' | 'department_director' | 'employee';
 }
 
 export interface LoginResponse {

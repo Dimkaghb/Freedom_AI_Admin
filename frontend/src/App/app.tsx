@@ -6,7 +6,6 @@ import { AuthPage } from '@/modules/auth'
 import { RegisterPage } from '@/modules/register'
 import { AuthProvider, useAuth } from '@/shared/stores/authstore'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
-import { HoldiingAdminDashboard } from '@/modules/holdingAdminDashboard'
 import { AddUserPage } from '@/modules/AddUserPage'
 
 // Redirect to dashboard if already authenticated
@@ -41,14 +40,6 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <Dashboard />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/hadmin"
-        element={
-          <ProtectedRoute>
-            <HoldiingAdminDashboard />
           </ProtectedRoute>
         }
       />
