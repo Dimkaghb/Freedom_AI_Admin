@@ -28,11 +28,30 @@ import {
   Search,
   Layers,
   Building,
-  LogOut
+  LogOut,
+  LayoutDashboard,
+  ChevronRight,
+  Home
 } from "lucide-react";
 import { VisitorsAreaChart } from "@/components/charts/VisitorsAreaChart";
 import { useAuth } from '@/shared/stores/authstore';
 import { useNavigate } from 'react-router-dom';
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarTrigger,
+  SidebarInset,
+} from "@/components/ui/sidebar";
+import { AddUserForm } from './addUser';
 
 // Enhanced type definitions for dashboard components
 interface StatCardProps {
@@ -345,6 +364,7 @@ function RecentRequestsTable() {
 export const Dashboard = () => {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedTimeRange, setSelectedTimeRange] = useState<string>('Последние 3 месяца');
+  const [currentView, setCurrentView] = useState<'dashboard' | 'addUser'>('dashboard');
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -368,47 +388,109 @@ export const Dashboard = () => {
   // Получаем отображаемое название роли
   const userRole = user?.role ? getRoleDisplayName(user.role) : 'Пользователь';
 
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="container mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
-        {/* Header Section - Responsive layout */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="space-y-1">
-            <div className="flex items-center gap-3 flex-wrap">
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
-                Панель управления
-              </h1>
-              <Badge className="bg-gray-900 text-white hover:bg-gray-800 text-xs font-medium px-3 py-1">
-                {userRole}
-              </Badge>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              С возвращением, {user?.name || user?.email}! Вот что происходит с вашими проектами.
-            </p>
-          </div>
+  // Navigation menu items
+  const menuItems = [
+    {
+      title: "Главная",
+      icon: Home,
+      view: "dashboard" as const,
+    },
+    {
+      title: "Добавить пользователя",
+      icon: UserPlus,
+      view: "addUser" as const,
+    },
+  ];
 
-          {/* Search Bar and Logout - Mobile responsive */}
-          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-            <div className="relative w-full sm:min-w-[300px]">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Поиск..."
-                value={searchQuery}
-                onChange={handleSearchChange}
-                className="pl-9 w-full"
-                aria-label="Поиск по панели управления"
-              />
+  return (
+    <SidebarProvider>
+      <div className="flex min-h-screen w-full">
+        {/* Sidebar */}
+        <Sidebar>
+          <SidebarHeader className="border-b border-gray-200 p-4">
+            <div className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-900">
+                <LayoutDashboard className="h-4 w-4 text-white" />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-sm font-semibold text-gray-900">Admin Panel</span>
+                <span className="text-xs text-gray-500">{userRole}</span>
+              </div>
             </div>
+          </SidebarHeader>
+
+          <SidebarContent className="px-2 py-4">
+            <SidebarGroup>
+              <SidebarGroupLabel className="text-xs font-medium text-gray-500 px-2 mb-2">
+                Навигация
+              </SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {menuItems.map((item) => (
+                    <SidebarMenuItem key={item.view}>
+                      <SidebarMenuButton
+                        onClick={() => setCurrentView(item.view)}
+                        isActive={currentView === item.view}
+                        className="w-full"
+                      >
+                        <item.icon className="h-4 w-4" />
+                        <span>{item.title}</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          </SidebarContent>
+
+          <SidebarFooter className="border-t border-gray-200 p-4">
             <Button
               variant="outline"
-              size="default"
+              size="sm"
               onClick={handleLogout}
-              className="flex items-center gap-2"
+              className="w-full flex items-center gap-2"
             >
               <LogOut className="h-4 w-4" />
               Выйти
             </Button>
+          </SidebarFooter>
+        </Sidebar>
+
+        {/* Main Content */}
+        <SidebarInset className="flex-1">
+          <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center gap-2 border-b border-gray-200 bg-white px-4">
+            <SidebarTrigger className="-ml-1" />
+            <Separator orientation="vertical" className="mr-2 h-4" />
+            <div className="flex flex-1 items-center gap-2">
+              <div className="relative w-full max-w-md">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+                <Input
+                  placeholder="Поиск..."
+                  value={searchQuery}
+                  onChange={handleSearchChange}
+                  className="pl-9 w-full"
+                />
+              </div>
+            </div>
+          </header>
+
+          {/* Content Area */}
+          <div className="flex-1 overflow-auto">
+            {currentView === 'dashboard' ? (
+              <div className="container mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+        {/* Header Section */}
+        <div className="space-y-1">
+          <div className="flex items-center gap-3 flex-wrap">
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
+              Панель управления
+            </h1>
+            <Badge className="bg-gray-900 text-white hover:bg-gray-800 text-xs font-medium px-3 py-1">
+              {userRole}
+            </Badge>
           </div>
+          <p className="text-sm text-muted-foreground">
+            С возвращением, {user?.name || user?.email}! Вот что происходит с вашими проектами.
+          </p>
         </div>
 
         {/* Statistics Cards - Responsive grid */}
@@ -450,13 +532,32 @@ export const Dashboard = () => {
           <div className="lg:col-span-1">
             <RecentRequestsTable />
           </div>
-          
+
           {/* Structure Management */}
           <div className="lg:col-span-1">
             <StructureManagement />
           </div>
         </div>
+              </div>
+            ) : currentView === 'addUser' ? (
+              <div className="container mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+                {/* Header Section */}
+                <div className="space-y-1">
+                  <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
+                    Добавить пользователя
+                  </h1>
+                  <p className="text-sm text-muted-foreground">
+                    Создайте нового пользователя в системе
+                  </p>
+                </div>
+
+                {/* Add User Form */}
+                <AddUserForm />
+              </div>
+            ) : null}
+          </div>
+        </SidebarInset>
       </div>
-    </div>
+    </SidebarProvider>
   );
 };

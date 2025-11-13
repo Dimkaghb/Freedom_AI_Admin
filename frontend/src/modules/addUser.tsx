@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { EyeIcon, EyeOffIcon, RefreshCwIcon, CheckIcon, XIcon, UserPlusIcon } from "lucide-react"
+import { CheckIcon, XIcon, UserPlusIcon, AlertCircleIcon, CopyIcon, RefreshCwIcon } from "lucide-react"
+import { createUser } from "@/services/user.api"
 
 // Types and interfaces for better type safety
 interface User {
@@ -15,7 +16,6 @@ interface User {
   lastName: string
   email: string
   role: string
-  tempPassword: string
 }
 
 interface FormErrors {
@@ -23,20 +23,17 @@ interface FormErrors {
   lastName?: string
   email?: string
   role?: string
-  tempPassword?: string
 }
 
 interface AddUserFormProps {
-  onAddUser: (user: User) => void
+  onAddUser?: (user: User) => void
   isLoading?: boolean
 }
 
 // Role options with proper typing
 const ROLE_OPTIONS = [
   { value: "admin", label: "Администратор" },
-  { value: "manager", label: "Менеджер" },
   { value: "user", label: "Пользователь" },
-  { value: "viewer", label: "Наблюдатель" },
 ] as const
 
 /**
@@ -44,27 +41,29 @@ const ROLE_OPTIONS = [
  * @param onAddUser - Callback function to handle user creation
  * @param isLoading - Loading state for form submission
  */
-export function AddUserForm({ onAddUser, isLoading = false }: AddUserFormProps) {
+export function AddUserForm({ onAddUser, isLoading: externalLoading = false }: AddUserFormProps) {
   // Form state management
   const [formData, setFormData] = useState<User>({
     firstName: "",
     lastName: "",
     email: "",
     role: "",
-    tempPassword: "",
   })
 
   // Form validation and UI state
   const [errors, setErrors] = useState<FormErrors>({})
-  const [showPassword, setShowPassword] = useState(false)
-  const [isGeneratingPassword, setIsGeneratingPassword] = useState(false)
   const [touched, setTouched] = useState<Record<keyof User, boolean>>({
     firstName: false,
     lastName: false,
     email: false,
     role: false,
-    tempPassword: false,
   })
+
+  // API state management
+  const [isLoading, setIsLoading] = useState(false)
+  const [apiError, setApiError] = useState<string | null>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [createdUserPassword, setCreatedUserPassword] = useState<string | null>(null)
 
   /**
    * Validates email format using regex
@@ -72,13 +71,6 @@ export function AddUserForm({ onAddUser, isLoading = false }: AddUserFormProps) 
   const isValidEmail = (email: string): boolean => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     return emailRegex.test(email)
-  }
-
-  /**
-   * Validates password strength
-   */
-  const isValidPassword = (password: string): boolean => {
-    return password.length >= 8 && /[A-Z]/.test(password) && /[a-z]/.test(password) && /\d/.test(password)
   }
 
   /**
@@ -113,52 +105,8 @@ export function AddUserForm({ onAddUser, isLoading = false }: AddUserFormProps) 
       newErrors.role = "Выберите роль пользователя"
     }
 
-    // Password validation
-    if (!formData.tempPassword) {
-      newErrors.tempPassword = "Временный пароль обязателен"
-    } else if (!isValidPassword(formData.tempPassword)) {
-      newErrors.tempPassword = "Пароль должен содержать минимум 8 символов, включая заглавные и строчные буквы, цифры"
-    }
-
     return newErrors
   }, [formData])
-
-  /**
-   * Generates a secure random password
-   */
-  const generatePassword = useCallback(async () => {
-    setIsGeneratingPassword(true)
-    
-    // Simulate async password generation
-    await new Promise(resolve => setTimeout(resolve, 500))
-    
-    const length = 12
-    const uppercase = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-    const lowercase = "abcdefghijklmnopqrstuvwxyz"
-    const numbers = "0123456789"
-    const symbols = "!@#$%^&*"
-    const allChars = uppercase + lowercase + numbers + symbols
-    
-    let password = ""
-    
-    // Ensure at least one character from each category
-    password += uppercase[Math.floor(Math.random() * uppercase.length)]
-    password += lowercase[Math.floor(Math.random() * lowercase.length)]
-    password += numbers[Math.floor(Math.random() * numbers.length)]
-    password += symbols[Math.floor(Math.random() * symbols.length)]
-    
-    // Fill the rest randomly
-    for (let i = 4; i < length; i++) {
-      password += allChars[Math.floor(Math.random() * allChars.length)]
-    }
-    
-    // Shuffle the password
-    password = password.split('').sort(() => Math.random() - 0.5).join('')
-    
-    setFormData(prev => ({ ...prev, tempPassword: password }))
-    setTouched(prev => ({ ...prev, tempPassword: true }))
-    setIsGeneratingPassword(false)
-  }, [])
 
   /**
    * Handles input field changes with validation
@@ -176,40 +124,62 @@ export function AddUserForm({ onAddUser, isLoading = false }: AddUserFormProps) 
   /**
    * Handles form submission with validation
    */
-  const handleSubmit = useCallback((e: React.FormEvent) => {
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     const formErrors = validateForm()
     setErrors(formErrors)
-    
+
     // Mark all fields as touched
     setTouched({
       firstName: true,
       lastName: true,
       email: true,
       role: true,
-      tempPassword: true,
     })
-    
+
     if (Object.keys(formErrors).length === 0) {
-      onAddUser(formData)
-      
-      // Reset form after successful submission
-      setFormData({
-        firstName: "",
-        lastName: "",
-        email: "",
-        role: "",
-        tempPassword: "",
-      })
-      setTouched({
-        firstName: false,
-        lastName: false,
-        email: false,
-        role: false,
-        tempPassword: false,
-      })
-      setErrors({})
+      setIsLoading(true)
+      setApiError(null)
+      setSuccessMessage(null)
+
+      try {
+        // Call API to create user (backend generates password, ignore frontend tempPassword)
+        const response = await createUser({
+          email: formData.email,
+          role: formData.role as 'admin' | 'user',
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+        })
+
+        // Store the temporary password from backend
+        setCreatedUserPassword(response.temporary_password)
+        setSuccessMessage(`Пользователь ${response.email} успешно создан!`)
+
+        // Call optional callback if provided
+        if (onAddUser) {
+          onAddUser(formData)
+        }
+
+        // Reset form after successful submission
+        setFormData({
+          firstName: "",
+          lastName: "",
+          email: "",
+          role: "",
+        })
+        setTouched({
+          firstName: false,
+          lastName: false,
+          email: false,
+          role: false,
+        })
+        setErrors({})
+      } catch (error: any) {
+        setApiError(error.message || 'Не удалось создать пользователя')
+      } finally {
+        setIsLoading(false)
+      }
     }
   }, [formData, validateForm, onAddUser])
 
@@ -241,6 +211,53 @@ export function AddUserForm({ onAddUser, isLoading = false }: AddUserFormProps) 
           </p>
         </CardHeader>
         <CardContent>
+          {/* Success Message */}
+          {successMessage && createdUserPassword && (
+            <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+              <div className="flex items-start gap-3">
+                <CheckIcon className="h-5 w-5 text-green-600 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-green-900">{successMessage}</p>
+                  <div className="mt-3 p-3 bg-white border border-green-200 rounded">
+                    <p className="text-xs font-medium text-gray-700 mb-1">Временный пароль:</p>
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 text-sm font-mono text-gray-900 bg-gray-50 px-2 py-1 rounded">
+                        {createdUserPassword}
+                      </code>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          navigator.clipboard.writeText(createdUserPassword)
+                        }}
+                        className="shrink-0"
+                      >
+                        <CopyIcon className="h-3 w-3" />
+                      </Button>
+                    </div>
+                    <p className="text-xs text-gray-600 mt-2">
+                      Сохраните этот пароль в безопасном месте. Он больше не будет отображаться.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Error Message */}
+          {apiError && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+              <div className="flex items-start gap-3">
+                <AlertCircleIcon className="h-5 w-5 text-red-600 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-red-900">Ошибка</p>
+                  <p className="text-sm text-red-700 mt-1">{apiError}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-6" noValidate>
             {/* Name Fields */}
             <div className="space-y-4">
@@ -371,65 +388,11 @@ export function AddUserForm({ onAddUser, isLoading = false }: AddUserFormProps) 
               )}
             </div>
 
-            {/* Password Field */}
-            <div className="space-y-2">
-              <Label htmlFor="tempPassword" className="text-sm font-medium text-gray-700">
-                Временный пароль *
-              </Label>
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <Input
-                    id="tempPassword"
-                    type={showPassword ? "text" : "password"}
-                    placeholder="Временный пароль"
-                    value={formData.tempPassword}
-                    onChange={(e) => handleInputChange("tempPassword", e.target.value)}
-                    className={`${getInputClassName("tempPassword")} pr-10`}
-                    aria-invalid={touched.tempPassword && !!errors.tempPassword}
-                    aria-describedby={errors.tempPassword ? "tempPassword-error" : "tempPassword-help"}
-                    disabled={isLoading}
-                    autoComplete="new-password"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none focus:text-gray-700"
-                    aria-label={showPassword ? "Скрыть пароль" : "Показать пароль"}
-                    disabled={isLoading}
-                  >
-                    {showPassword ? (
-                      <EyeOffIcon className="h-4 w-4" />
-                    ) : (
-                      <EyeIcon className="h-4 w-4" />
-                    )}
-                  </button>
-                </div>
-                <Button
-                  type="button"
-                  onClick={generatePassword}
-                  disabled={isLoading || isGeneratingPassword}
-                  variant="outline"
-                  className="px-4 shrink-0"
-                  aria-label="Генерировать безопасный пароль"
-                >
-                  {isGeneratingPassword ? (
-                    <RefreshCwIcon className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <RefreshCwIcon className="h-4 w-4" />
-                  )}
-                  <span className="hidden sm:inline ml-2">Генерировать</span>
-                </Button>
-              </div>
-              {!errors.tempPassword && (
-                <p id="tempPassword-help" className="text-xs text-gray-500">
-                  Минимум 8 символов, включая заглавные и строчные буквы, цифры
-                </p>
-              )}
-              {touched.tempPassword && errors.tempPassword && (
-                <p id="tempPassword-error" className="text-sm text-red-600" role="alert">
-                  {errors.tempPassword}
-                </p>
-              )}
+            {/* Info about password generation */}
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-xs text-blue-900">
+                <strong>Примечание:</strong> Безопасный временный пароль будет автоматически сгенерирован системой и отображен после создания пользователя.
+              </p>
             </div>
 
             {/* Submit Button */}

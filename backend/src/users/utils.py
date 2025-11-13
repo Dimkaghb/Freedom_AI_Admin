@@ -130,7 +130,7 @@ def get_mongodb_connection():
         raise ConnectionFailure(f"Database connection failed: {str(e)}")
 
 
-def add_user_by_admin(email: str, role: str, full_name: str = None) -> UserCreateResponse:
+def add_user_by_admin(email: str, role: str, firstName: str = None, lastName: str = None) -> UserCreateResponse:
     """
     Create a new user by admin with secure password generation and database storage.
     
@@ -145,7 +145,8 @@ def add_user_by_admin(email: str, role: str, full_name: str = None) -> UserCreat
     Args:
         email (str): User's email address (will be validated and normalized)
         role (str): User role, must be either 'admin' or 'user'
-        full_name (str, optional): User's full name. Defaults to None.
+        firstName (str, optional): User's first name. Defaults to None.
+        lastName (str, optional): User's last name. Defaults to None.
         
     Returns:
         UserCreateResponse: Complete user document with temporary password for one-time display
@@ -201,7 +202,8 @@ def add_user_by_admin(email: str, role: str, full_name: str = None) -> UserCreat
     user_doc = {
         "email": normalized_email,
         "role": role,
-        "full_name": full_name,
+        "firstName": firstName,
+        "lastName": lastName,
         "is_active": True,
         "hashed_password": hashed_password,
         "created_at": current_time,
@@ -230,7 +232,8 @@ def add_user_by_admin(email: str, role: str, full_name: str = None) -> UserCreat
             id=str(result.inserted_id),
             email=normalized_email,
             role=role,
-            full_name=full_name,
+            firstName=firstName,
+            lastName=lastName,
             is_active=True,
             created_at=current_time,
             updated_at=current_time,
@@ -484,7 +487,8 @@ def register_pending_user(registration_data: PendingUserCreate) -> PendingUserRe
         current_time = datetime.utcnow()
         pending_user_doc = {
             "email": normalized_email,
-            "full_name": registration_data.full_name,
+            "firstName": registration_data.firstName,
+            "lastName": registration_data.lastName,
             "hashed_password": hashed_password,
             "company_id": link_info["company_id"],
             "department_id": link_info.get("department_id"),
@@ -514,7 +518,8 @@ def register_pending_user(registration_data: PendingUserCreate) -> PendingUserRe
         return PendingUserResponse(
             id=str(result.inserted_id),
             email=normalized_email,
-            full_name=registration_data.full_name,
+            firstName=registration_data.firstName,
+            lastName=registration_data.lastName,
             company_id=link_info["company_id"],
             department_id=link_info.get("department_id"),
             role=link_info["role"],
@@ -589,7 +594,8 @@ def list_pending_users(admin_user: dict) -> list[PendingUserResponse]:
             result.append(PendingUserResponse(
                 id=str(user["_id"]),
                 email=user["email"],
-                full_name=user["full_name"],
+                firstName=user["firstName"],
+                lastName=user["lastName"],
                 company_id=user["company_id"],
                 department_id=user.get("department_id"),
                 role=user["role"],
@@ -666,7 +672,8 @@ def approve_pending_user(pending_user_id: str, admin_user: dict):
         current_time = datetime.utcnow()
         user_doc = {
             "email": pending_user["email"],
-            "full_name": pending_user["full_name"],
+            "firstName": pending_user["firstName"],
+            "lastName": pending_user["lastName"],
             "hashed_password": pending_user["hashed_password"],
             "company_id": pending_user.get("company_id"),
             "department_id": pending_user.get("department_id"),
@@ -715,9 +722,10 @@ def approve_pending_user(pending_user_id: str, admin_user: dict):
                     department_name = department.get("name") if department else None
 
                 # Send approval email
+                user_full_name = f"{pending_user['firstName']} {pending_user['lastName']}"
                 email_service.send_user_approval_email(
                     to_email=pending_user["email"],
-                    user_name=pending_user["full_name"],
+                    user_name=user_full_name,
                     company_name=company_name,
                     role=pending_user["role"],
                     department_name=department_name,
@@ -734,7 +742,8 @@ def approve_pending_user(pending_user_id: str, admin_user: dict):
             id=str(result.inserted_id),
             email=user_doc["email"],
             role=user_doc["role"],
-            full_name=user_doc["full_name"],
+            firstName=user_doc["firstName"],
+            lastName=user_doc["lastName"],
             is_active=user_doc["is_active"],
             created_at=user_doc["created_at"],
             updated_at=user_doc["updated_at"],
@@ -826,9 +835,10 @@ def reject_pending_user(pending_user_id: str, admin_user: dict) -> dict:
                 company_name = company.get("name", "Unknown Company") if company else "Unknown Company"
 
                 # Send rejection email
+                user_full_name = f"{pending_user['firstName']} {pending_user['lastName']}"
                 email_service.send_user_rejection_email(
                     to_email=pending_user["email"],
-                    user_name=pending_user["full_name"],
+                    user_name=user_full_name,
                     company_name=company_name
                 )
                 logger.info(f"Rejection email sent to {pending_user['email']}")
@@ -912,7 +922,8 @@ def list_users_with_filter(admin_user: dict, status_filter: str = "active"):
                 id=str(user["_id"]),
                 email=user["email"],
                 role=user["role"],
-                full_name=user.get("full_name"),
+                firstName=user.get("firstName"),
+                lastName=user.get("lastName"),
                 is_active=user.get("is_active", True),
                 created_at=user["created_at"],
                 updated_at=user["updated_at"]

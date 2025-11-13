@@ -8,7 +8,8 @@ class UserBase(BaseModel):
     """Base user model with common fields"""
     email: EmailStr
     role: str = Field(..., pattern="^(superadmin|admin|director|user)$")
-    full_name: Optional[str] = None
+    firstName: Optional[str] = None
+    lastName: Optional[str] = None
     is_active: bool = True
     holding_id: Optional[str] = Field(default=None, description="ID of the holding (for superadmin)")
     company_id: Optional[str] = Field(default=None, description="ID of the company (for admin)")
@@ -25,7 +26,8 @@ class UserInDB(BaseModel):
     id: Optional[str] = Field(default=None, alias="_id")
     email: EmailStr
     role: str
-    full_name: Optional[str] = None
+    firstName: Optional[str] = None
+    lastName: Optional[str] = None
     is_active: bool = True
     hashed_password: str
     holding_id: Optional[str] = None
@@ -95,7 +97,8 @@ class RegisterUserRequest(BaseModel):
     """Model for user registration request"""
     link_id: str = Field(..., description="MongoDB ObjectId of the CreateUserLink")
     email: EmailStr
-    full_name: Optional[str] = None
+    firstName: Optional[str] = None
+    lastName: Optional[str] = None
     password: str = Field(..., min_length=8, description="User password")
 
 class UserListResponse(BaseModel):
@@ -152,7 +155,8 @@ class PendingUserCreate(BaseModel):
     """Model for user registration via link"""
     link_id: str = Field(..., description="Registration link identifier")
     email: EmailStr = Field(..., description="User email address")
-    full_name: str = Field(..., min_length=1, max_length=100, description="User's full name")
+    firstName: str = Field(..., min_length=1, max_length=50, description="User's first name")
+    lastName: str = Field(..., min_length=1, max_length=50, description="User's last name")
     password: str = Field(..., min_length=8, description="User password (minimum 8 characters)")
     password_confirm: str = Field(..., min_length=8, description="Password confirmation")
 
@@ -161,7 +165,8 @@ class PendingUserCreate(BaseModel):
             "example": {
                 "link_id": "abc123def456",
                 "email": "user@example.com",
-                "full_name": "John Doe",
+                "firstName": "John",
+                "lastName": "Doe",
                 "password": "SecurePass123!",
                 "password_confirm": "SecurePass123!"
             }
@@ -173,7 +178,8 @@ class PendingUserResponse(BaseModel):
     """Model for pending user response"""
     id: str = Field(..., description="MongoDB ObjectId as string")
     email: EmailStr
-    full_name: str
+    firstName: str
+    lastName: str
     company_id: str
     department_id: Optional[str] = None
     role: str
@@ -186,7 +192,8 @@ class PendingUserResponse(BaseModel):
             "example": {
                 "id": "607f1f77bcf86cd799439021",
                 "email": "user@example.com",
-                "full_name": "John Doe",
+                "firstName": "John",
+                "lastName": "Doe",
                 "company_id": "507f1f77bcf86cd799439011",
                 "department_id": "507f1f77bcf86cd799439013",
                 "role": "user",
@@ -201,7 +208,8 @@ class PendingUserResponse(BaseModel):
 class PendingUserInDB(BaseModel):
     """Model for pending user document in MongoDB"""
     email: EmailStr
-    full_name: str
+    firstName: str
+    lastName: str
     hashed_password: str
     company_id: str
     department_id: Optional[str] = None

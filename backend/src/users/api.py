@@ -37,17 +37,17 @@ router = APIRouter(prefix="/users", tags=["users"])
 async def create_user_endpoint(user_data: UserCreate, current_admin: dict = Depends(require_admin)):
     """
     Create a new user by admin.
-    
+
     This endpoint allows administrators to create new users with automatically
     generated secure passwords. The temporary password is returned once for
     the admin to share with the new user.
-    
+
     Args:
-        user_data (UserCreate): User creation data including email, role, and optional full_name
-        
+        user_data (UserCreate): User creation data including email, role, and optional firstName and lastName
+
     Returns:
         UserCreateResponse: Created user data with temporary password
-        
+
     Raises:
         HTTPException: 400 for validation errors, 409 for duplicate email, 500 for server errors
     """
@@ -56,7 +56,8 @@ async def create_user_endpoint(user_data: UserCreate, current_admin: dict = Depe
         new_user = add_user_by_admin(
             email=user_data.email,
             role=user_data.role,
-            full_name=user_data.full_name
+            firstName=user_data.firstName,
+            lastName=user_data.lastName
         )
         
         logger.info(f"User created successfully via API: {user_data.email}")
@@ -172,7 +173,8 @@ async def register_via_link_endpoint(registration_data: PendingUserCreate):
         {
             "link_id": "abc123def456",
             "email": "user@example.com",
-            "full_name": "John Doe",
+            "firstName": "John",
+            "lastName": "Doe",
             "password": "SecurePass123!",
             "password_confirm": "SecurePass123!"
         }
@@ -232,7 +234,8 @@ async def list_pending_users_endpoint(current_admin: dict = Depends(require_admi
                 {
                     "id": "607f1f77bcf86cd799439021",
                     "email": "user@example.com",
-                    "full_name": "John Doe",
+                    "firstName": "John",
+                    "lastName": "Doe",
                     "company_id": "507f1f77bcf86cd799439011",
                     "department_id": "507f1f77bcf86cd799439013",
                     "role": "user",
@@ -303,7 +306,8 @@ async def approve_pending_user_endpoint(
             "id": "607f1f77bcf86cd799439021",
             "email": "user@example.com",
             "role": "user",
-            "full_name": "John Doe",
+            "firstName": "John",
+            "lastName": "Doe",
             "is_active": true,
             "created_at": "2024-01-01T00:00:00",
             "updated_at": "2024-01-01T00:00:00",
@@ -453,7 +457,8 @@ async def list_users_endpoint(
                     "id": "607f1f77bcf86cd799439021",
                     "email": "user@example.com",
                     "role": "user",
-                    "full_name": "John Doe",
+                    "firstName": "John",
+                    "lastName": "Doe",
                     "is_active": true,
                     "created_at": "2024-01-01T00:00:00",
                     "updated_at": "2024-01-01T00:00:00"
