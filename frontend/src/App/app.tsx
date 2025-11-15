@@ -7,6 +7,7 @@ import { RegisterPage } from '@/modules/register'
 import { AuthProvider, useAuth } from '@/shared/stores/authstore'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { AddUserPage } from '@/modules/AddUserPage'
+import { FileManager } from '@/modules/file-manager'
 
 // Redirect to dashboard if already authenticated
 function AuthPageWrapper() {
@@ -48,6 +49,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <AddUserPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/file-manager"
+        element={
+          <ProtectedRoute>
+            <FileManager />
           </ProtectedRoute>
         }
       />

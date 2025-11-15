@@ -14,7 +14,6 @@ import {
   Building2,
   FileText,
   Plus,
-  Activity,
   TrendingUp,
   Settings,
   UserPlus,
@@ -31,7 +30,8 @@ import {
   LogOut,
   LayoutDashboard,
   ChevronRight,
-  Home
+  Home,
+  BookOpen
 } from "lucide-react";
 import { VisitorsAreaChart } from "@/components/charts/VisitorsAreaChart";
 import { useAuth } from '@/shared/stores/authstore';
@@ -364,7 +364,7 @@ function RecentRequestsTable() {
 export const Dashboard = () => {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedTimeRange, setSelectedTimeRange] = useState<string>('Последние 3 месяца');
-  const [currentView, setCurrentView] = useState<'dashboard' | 'addUser'>('dashboard');
+  const [currentView, setCurrentView] = useState<'dashboard' | 'addUser' | 'knowledgeBase'>('dashboard');
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -400,8 +400,12 @@ export const Dashboard = () => {
       icon: UserPlus,
       view: "addUser" as const,
     },
-  ];
-
+    {
+      title: "База знаний",
+      icon: BookOpen,
+      view: "knowledgeBase" as const,
+    },
+  ]
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full">
@@ -553,6 +557,10 @@ export const Dashboard = () => {
 
                 {/* Add User Form */}
                 <AddUserForm />
+              </div>
+            ) : currentView === 'knowledgeBase' ? (
+              <div className="container mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+                {/* Knowledge Base - To be implemented */}
               </div>
             ) : null}
           </div>
