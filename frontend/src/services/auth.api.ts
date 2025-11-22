@@ -11,6 +11,9 @@ export interface User {
   name: string;
   email: string;
   role: 'holding_admin' | 'company_admin' | 'department_director' | 'employee';
+  company_id?: string;
+  department_id?: string;
+  holding_id?: string;
 }
 
 export interface LoginResponse {

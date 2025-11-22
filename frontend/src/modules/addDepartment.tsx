@@ -10,6 +10,7 @@ import { CheckIcon, XIcon, PlusIcon, AlertCircleIcon, RefreshCwIcon, UserPlusIco
 import { createDepartment } from "@/services/department.api"
 import { listHoldings } from "@/services/holding.api"
 import { listCompanies } from "@/services/company.api"
+import { useAuth } from "@/shared/stores/authstore"
 
 // Types and interfaces for better type safety
 interface Department {
@@ -40,6 +41,11 @@ interface AddDepartmentFormProps {
  * @param onClose - Callback to close the modal
  */
 export function AddDepartmentForm({ onAddDepartment, isLoading: externalLoading = false, onClose }: AddDepartmentFormProps) {
+  // Get current user to check role
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin' || user?.role === 'company_admin';
+  const isSuperAdmin = user?.role === 'superadmin' || user?.role === 'holding_admin';
+
   // Form state management
   const [formData, setFormData] = useState<Department>({
     name: "",
@@ -296,13 +302,13 @@ export function AddDepartmentForm({ onAddDepartment, isLoading: externalLoading 
   const validateForm = useCallback((): FormErrors => {
     const newErrors: FormErrors = {}
 
-    // Holding validation
-    if (!formData.holdingId) {
+    // Holding validation (only for superadmin)
+    if (isSuperAdmin && !formData.holdingId) {
       newErrors.holdingId = "Выберите холдинг"
     }
 
-    // Company validation
-    if (!formData.companyId) {
+    // Company validation (only for superadmin)
+    if (isSuperAdmin && !formData.companyId) {
       newErrors.companyId = "Выберите компанию"
     }
 
@@ -319,7 +325,7 @@ export function AddDepartmentForm({ onAddDepartment, isLoading: externalLoading 
     }
 
     return newErrors
-  }, [formData])
+  }, [formData, isAdmin, isSuperAdmin])
 
   /**
    * Handles input field changes with validation
@@ -359,9 +365,10 @@ export function AddDepartmentForm({ onAddDepartment, isLoading: externalLoading 
 
       try {
         // Call API to create department
+        // For admins, company_id is auto-set on backend, so we don't send it
         const response = await createDepartment({
           name: formData.name,
-          company_id: formData.companyId,
+          company_id: isAdmin ? undefined : formData.companyId,
           manager_id: formData.directorId,
           description: formData.description,
         })
@@ -464,7 +471,17 @@ export function AddDepartmentForm({ onAddDepartment, isLoading: externalLoading 
           )}
 
           <form onSubmit={handleSubmit} className="space-y-6" noValidate>
-            {/* Holding Field - Searchable Autocomplete */}
+            {/* Info message for admin users */}
+            {isAdmin && (
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-xs text-blue-900">
+                  <strong>Примечание:</strong> Отдел будет создан в вашей компании автоматически.
+                </p>
+              </div>
+            )}
+
+            {/* Holding Field - Searchable Autocomplete (only for superadmin) */}
+            {isSuperAdmin && (
             <div className="space-y-2">
               <Label htmlFor="holdingId" className="text-sm font-medium text-gray-700">
                 Холдинг *
@@ -526,8 +543,10 @@ export function AddDepartmentForm({ onAddDepartment, isLoading: externalLoading 
                 </p>
               )}
             </div>
+            )}
 
-            {/* Company Field - Searchable Autocomplete */}
+            {/* Company Field - Searchable Autocomplete (only for superadmin) */}
+            {isSuperAdmin && (
             <div className="space-y-2">
               <Label htmlFor="companyId" className="text-sm font-medium text-gray-700">
                 Компания *
@@ -589,6 +608,7 @@ export function AddDepartmentForm({ onAddDepartment, isLoading: externalLoading 
                 </p>
               )}
             </div>
+            )}
 
             {/* Department Name Field */}
             <div className="space-y-2">

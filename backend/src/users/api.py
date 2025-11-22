@@ -52,15 +52,37 @@ async def create_user_endpoint(user_data: UserCreate, current_admin: dict = Depe
         HTTPException: 400 for validation errors, 409 for duplicate email, 500 for server errors
     """
     try:
+        # Determine company_id, department_id, and holding_id based on current admin's role
+        admin_role = current_admin.get("role")
+        company_id = None
+        department_id = None
+        holding_id = None
+
+        if admin_role == "admin":
+            # Admin can only add users to their own company
+            company_id = current_admin.get("company_id")
+            if not company_id:
+                raise ValueError("Admin user must have a company_id")
+        elif admin_role == "director":
+            # Department director can only add users to their own department
+            company_id = current_admin.get("company_id")
+            department_id = current_admin.get("department_id")
+            if not company_id or not department_id:
+                raise ValueError("Director user must have company_id and department_id")
+        # superadmin can create users without company_id/department_id restrictions
+
         # Create user using the comprehensive function
         new_user = add_user_by_admin(
             email=user_data.email,
             role=user_data.role,
             firstName=user_data.firstName,
-            lastName=user_data.lastName
+            lastName=user_data.lastName,
+            company_id=company_id,
+            department_id=department_id,
+            holding_id=holding_id
         )
-        
-        logger.info(f"User created successfully via API: {user_data.email}")
+
+        logger.info(f"User created successfully via API: {user_data.email} by {admin_role}")
         return new_user
         
     except ValueError as e:

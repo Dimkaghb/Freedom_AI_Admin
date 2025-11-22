@@ -50,14 +50,39 @@ def create_department_endpoint(department_data: DepartmentCreate, current_admin:
         ```
     """
     try:
+        # Determine company_id based on current admin's role
+        admin_role = current_admin.get("role")
+        requested_company_id = department_data.company_id
+
+        if admin_role == "admin":
+            # Admin can only create departments in their own company
+            admin_company_id = current_admin.get("company_id")
+            if not admin_company_id:
+                raise ValueError("Admin user must have a company_id")
+
+            # If company_id is provided in request, it must match admin's company
+            if requested_company_id and requested_company_id != admin_company_id:
+                raise ValueError("Admin can only create departments in their own company")
+
+            # Use admin's company_id
+            company_id = admin_company_id
+        elif admin_role == "superadmin":
+            # Superadmin must provide company_id
+            if not requested_company_id:
+                raise ValueError("Superadmin must provide company_id when creating department")
+            company_id = requested_company_id
+        else:
+            # Other roles cannot create departments
+            raise ValueError(f"Role '{admin_role}' does not have permission to create departments")
+
         new_department = db_create_department(
             name=department_data.name,
-            company_id=department_data.company_id,
+            company_id=company_id,
             description=department_data.description,
             manager_id=department_data.manager_id
         )
 
-        logger.info(f"Department created successfully via API: {department_data.name}")
+        logger.info(f"Department created successfully via API: {department_data.name} by {admin_role}")
         return new_department
 
     except ValueError as e:

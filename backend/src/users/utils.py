@@ -109,7 +109,8 @@ def validate_email_format(email: str) -> str:
 # Use get_database() from ..database instead
 
 
-def add_user_by_admin(email: str, role: str, firstName: str = None, lastName: str = None) -> UserCreateResponse:
+def add_user_by_admin(email: str, role: str, firstName: str = None, lastName: str = None,
+                      company_id: str = None, department_id: str = None, holding_id: str = None) -> UserCreateResponse:
     """
     Create a new user by admin with secure password generation and database storage.
     
@@ -185,6 +186,9 @@ def add_user_by_admin(email: str, role: str, firstName: str = None, lastName: st
         "lastName": lastName,
         "is_active": True,
         "hashed_password": hashed_password,
+        "company_id": company_id,
+        "department_id": department_id,
+        "holding_id": holding_id,
         "created_at": current_time,
         "updated_at": current_time
     }

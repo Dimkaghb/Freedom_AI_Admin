@@ -7,7 +7,7 @@ export interface CreateDepartmentRequest {
   name: string;
   description?: string;
   manager_id: string;
-  company_id?: string;
+  company_id?: string; // Optional - auto-set for admins based on their company
 }
 
 /**

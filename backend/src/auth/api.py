@@ -41,7 +41,10 @@ async def login(login_data: LoginRequest):
                 "id": str(user.get("id") or user.get("_id", "")),
                 "name": user.get("full_name", "") or user.get("name", ""),
                 "email": user.get("email", ""),
-                "role": user.get("role", "user")
+                "role": user.get("role", "user"),
+                "company_id": user.get("company_id"),
+                "department_id": user.get("department_id"),
+                "holding_id": user.get("holding_id")
             }
 
             user_response = {
@@ -123,7 +126,10 @@ async def get_current_user_info(current_user: dict = Depends(get_current_user)):
             "name": current_user.get("full_name", "") or current_user.get("name", ""),
             "email": current_user.get("email", ""),
             "role": current_user.get("role", "user"),
-            "is_active": current_user.get("is_active", True)
+            "is_active": current_user.get("is_active", True),
+            "company_id": current_user.get("company_id"),
+            "department_id": current_user.get("department_id"),
+            "holding_id": current_user.get("holding_id")
         }
         return user_info
     except Exception as e:

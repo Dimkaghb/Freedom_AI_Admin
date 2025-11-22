@@ -7,7 +7,7 @@ class DepartmentCreate(BaseModel):
     """Model for creating a new department"""
     name: str = Field(..., min_length=1, max_length=100, description="Department name")
     description: Optional[str] = Field(None, max_length=500, description="Department description")
-    company_id: str = Field(..., description="MongoDB ObjectId of the parent company")
+    company_id: Optional[str] = Field(None, description="MongoDB ObjectId of the parent company (optional for admins, required for superadmin)")
     manager_id: Optional[str] = Field(None, description="MongoDB ObjectId of the department manager")
 
 class DepartmentUpdate(BaseModel):
