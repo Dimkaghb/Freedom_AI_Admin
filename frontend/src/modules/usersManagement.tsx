@@ -1,0 +1,291 @@
+"use client"
+
+import type React from "react"
+import { useState, useEffect, useCallback } from "react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { CheckCircle, XCircle, Clock, RefreshCw, UserCheck, UserX } from "lucide-react"
+import { AddUserForm } from './addUser'
+import { listUsers, listPendingUsers, approvePendingUser, rejectPendingUser } from "@/services/user.api"
+import type { UserResponse, PendingUserResponse } from "@/services/user.api"
+
+/**
+ * UsersManagement component with enhanced layout:
+ * - Top row: Add User form (left) + Pending Users list (right)
+ * - Bottom row: Comprehensive users table
+ */
+export function UsersManagement() {
+  // Users state
+  const [users, setUsers] = useState<UserResponse[]>([])
+  const [pendingUsers, setPendingUsers] = useState<PendingUserResponse[]>([])
+  const [loadingUsers, setLoadingUsers] = useState(false)
+  const [loadingPending, setLoadingPending] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  /**
+   * Fetch all users
+   */
+  const fetchUsers = useCallback(async () => {
+    setLoadingUsers(true)
+    setError(null)
+    try {
+      const activeUsers = await listUsers('active')
+      setUsers(activeUsers)
+    } catch (err: any) {
+      setError(err.message || 'Failed to load users')
+    } finally {
+      setLoadingUsers(false)
+    }
+  }, [])
+
+  /**
+   * Fetch pending users
+   */
+  const fetchPendingUsers = useCallback(async () => {
+    setLoadingPending(true)
+    try {
+      const pending = await listPendingUsers()
+      setPendingUsers(pending)
+    } catch (err: any) {
+      console.error('Failed to load pending users:', err)
+    } finally {
+      setLoadingPending(false)
+    }
+  }, [])
+
+  /**
+   * Handle approve pending user
+   */
+  const handleApprove = useCallback(async (userId: string) => {
+    try {
+      await approvePendingUser(userId)
+      // Refresh both lists
+      await Promise.all([fetchPendingUsers(), fetchUsers()])
+    } catch (err: any) {
+      setError(err.message || 'Failed to approve user')
+    }
+  }, [fetchPendingUsers, fetchUsers])
+
+  /**
+   * Handle reject pending user
+   */
+  const handleReject = useCallback(async (userId: string) => {
+    try {
+      await rejectPendingUser(userId)
+      // Refresh pending list
+      await fetchPendingUsers()
+    } catch (err: any) {
+      setError(err.message || 'Failed to reject user')
+    }
+  }, [fetchPendingUsers])
+
+  /**
+   * Load data on mount
+   */
+  useEffect(() => {
+    fetchUsers()
+    fetchPendingUsers()
+  }, [fetchUsers, fetchPendingUsers])
+
+  /**
+   * Get status badge
+   */
+  const getStatusBadge = (isActive: boolean) => {
+    return isActive ? (
+      <Badge className="bg-green-100 text-green-700 hover:bg-green-100">
+        <CheckCircle className="h-3 w-3 mr-1" />
+        Активный
+      </Badge>
+    ) : (
+      <Badge variant="destructive">
+        <XCircle className="h-3 w-3 mr-1" />
+        Заблокирован
+      </Badge>
+    )
+  }
+
+  /**
+   * Get role badge
+   */
+  const getRoleBadge = (role: string) => {
+    const roleColors: Record<string, string> = {
+      superadmin: 'bg-purple-100 text-purple-700',
+      admin: 'bg-blue-100 text-blue-700',
+      director: 'bg-indigo-100 text-indigo-700',
+      user: 'bg-gray-100 text-gray-700',
+    }
+
+    const roleNames: Record<string, string> = {
+      superadmin: 'Суперадмин',
+      admin: 'Администратор',
+      director: 'Директор',
+      user: 'Пользователь',
+    }
+
+    return (
+      <Badge className={`${roleColors[role] || roleColors.user} hover:${roleColors[role]}`}>
+        {roleNames[role] || role}
+      </Badge>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Top Row: Add User + Pending Users */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Add User Section */}
+        <Card className="border border-gray-200 shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-lg font-semibold text-gray-900">
+              Добавить пользователя
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <AddUserForm onUserCreated={fetchUsers} />
+          </CardContent>
+        </Card>
+
+        {/* Pending Users Section */}
+        <Card className="border border-gray-200 shadow-sm">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg font-semibold text-gray-900">
+                Ожидают подтверждения
+              </CardTitle>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={fetchPendingUsers}
+                disabled={loadingPending}
+              >
+                <RefreshCw className={`h-4 w-4 ${loadingPending ? 'animate-spin' : ''}`} />
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3 max-h-[400px] overflow-y-auto">
+              {loadingPending ? (
+                <div className="flex items-center justify-center py-8">
+                  <RefreshCw className="h-6 w-6 animate-spin text-gray-400" />
+                </div>
+              ) : pendingUsers.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <Clock className="h-12 w-12 mx-auto mb-2 text-gray-300" />
+                  <p className="text-sm">Нет ожидающих пользователей</p>
+                </div>
+              ) : (
+                pendingUsers.map((user) => (
+                  <div
+                    key={user.id}
+                    className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-lg"
+                  >
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-gray-900">
+                        {user.firstName} {user.lastName}
+                      </p>
+                      <p className="text-xs text-gray-500">{user.email}</p>
+                      <div className="mt-1">
+                        {getRoleBadge(user.role)}
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 text-green-600 hover:text-green-700 hover:bg-green-50"
+                        onClick={() => handleApprove(user.id)}
+                      >
+                        <UserCheck className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                        onClick={() => handleReject(user.id)}
+                      >
+                        <UserX className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Bottom Row: Users Table */}
+      <Card className="border border-gray-200 shadow-sm">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg font-semibold text-gray-900">
+              Все пользователи
+            </CardTitle>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={fetchUsers}
+              disabled={loadingUsers}
+            >
+              <RefreshCw className={`h-4 w-4 ${loadingUsers ? 'animate-spin' : ''}`} />
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {loadingUsers ? (
+            <div className="flex items-center justify-center py-12">
+              <RefreshCw className="h-8 w-8 animate-spin text-gray-400" />
+            </div>
+          ) : error ? (
+            <div className="text-center py-8 text-red-600">
+              <p className="text-sm">{error}</p>
+            </div>
+          ) : users.length === 0 ? (
+            <div className="text-center py-12 text-gray-500">
+              <p className="text-sm">Пользователи не найдены</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-12">№</TableHead>
+                    <TableHead>Имя</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Статус</TableHead>
+                    <TableHead>Холдинг</TableHead>
+                    <TableHead>Компания</TableHead>
+                    <TableHead>Отдел</TableHead>
+                    <TableHead>Роль</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {users.map((user, index) => (
+                    <TableRow key={user.id} className="hover:bg-gray-50">
+                      <TableCell className="font-medium text-gray-500">{index + 1}</TableCell>
+                      <TableCell className="font-medium">
+                        {user.firstName && user.lastName
+                          ? `${user.firstName} ${user.lastName}`
+                          : user.email.split('@')[0]}
+                      </TableCell>
+                      <TableCell className="text-gray-600">{user.email}</TableCell>
+                      <TableCell>{getStatusBadge(user.is_active)}</TableCell>
+                      <TableCell className="text-gray-500 italic">Неизвестно</TableCell>
+                      <TableCell className="text-gray-500 italic">Неизвестно</TableCell>
+                      <TableCell className="text-gray-500 italic">Неизвестно</TableCell>
+                      <TableCell>{getRoleBadge(user.role)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+export default UsersManagement

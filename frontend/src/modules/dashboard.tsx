@@ -56,6 +56,7 @@ import { AddUserForm } from './addUser';
 import { AddDepartmentForm } from './addDepartment';
 import { AddHoldingForm } from './addHolding';
 import { AddCompanyForm } from './addCompany';
+import { UsersManagement } from './usersManagement';
 import { getDashboardStats, handleDashboardError } from '@/services/dashboard.api';
 import type { DashboardResponse } from '@/types/dashboard';
 import {
@@ -434,8 +435,8 @@ export const Dashboard = () => {
       view: "dashboard" as const,
     },
     {
-      title: "Добавить пользователя",
-      icon: UserPlus,
+      title: "Пользователи",
+      icon: Users,
       view: "addUser" as const,
     },
     {
@@ -622,15 +623,15 @@ export const Dashboard = () => {
                 {/* Header Section */}
                 <div className="space-y-1">
                   <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
-                    Добавить пользователя
+                    Управление пользователями
                   </h1>
                   <p className="text-sm text-muted-foreground">
-                    Создайте нового пользователя в системе
+                    Добавление, утверждение и управление пользователями
                   </p>
                 </div>
 
-                {/* Add User Form */}
-                <AddUserForm />
+                {/* Users Management Module */}
+                <UsersManagement />
               </div>
             ) : currentView === 'addDepartment' ? (
               <div className="container mx-auto p-4 sm:p-6 lg:p-8 space-y-6">

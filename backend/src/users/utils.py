@@ -865,7 +865,7 @@ def list_users_with_filter(admin_user: dict, status_filter: str = "active"):
             result.append(UserResponse(
                 id=str(user["_id"]),
                 email=user["email"],
-                role=user["role"],
+                role=user.get("role", "user"),  # Default to "user" if role is missing
                 firstName=user.get("firstName"),
                 lastName=user.get("lastName"),
                 is_active=user.get("is_active", True),

@@ -58,6 +58,22 @@ export const createUser = async (userData: CreateUserRequest): Promise<CreateUse
 };
 
 /**
+ * Pending user response interface
+ */
+export interface PendingUserResponse {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  company_id: string;
+  department_id?: string;
+  role: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
  * Get list of users with optional status filter
  *
  * @param statusFilter - Filter by status: 'active' or 'blocked'
@@ -71,6 +87,61 @@ export const listUsers = async (statusFilter: 'active' | 'blocked' = 'active'): 
     return response.data.users;
   } catch (error: any) {
     const errorMessage = error.response?.data?.detail || 'Failed to fetch users';
+    throw new Error(errorMessage);
+  }
+};
+
+/**
+ * Get list of pending users awaiting approval
+ *
+ * @returns Promise with list of pending users
+ */
+export const listPendingUsers = async (): Promise<PendingUserResponse[]> => {
+  try {
+    const response = await apiClient.get<{ pending_users: PendingUserResponse[]; total_count: number }>(
+      '/users/pending'
+    );
+    return response.data.pending_users;
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || 'Failed to fetch pending users';
+    throw new Error(errorMessage);
+  }
+};
+
+/**
+ * Approve a pending user
+ *
+ * @param pendingUserId - ID of the pending user to approve
+ * @returns Promise with approved user data
+ */
+export const approvePendingUser = async (pendingUserId: string): Promise<UserResponse> => {
+  try {
+    const response = await apiClient.post<UserResponse>('/users/approve', {
+      pending_user_id: pendingUserId,
+      action: 'approve'
+    });
+    return response.data;
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || 'Failed to approve user';
+    throw new Error(errorMessage);
+  }
+};
+
+/**
+ * Reject a pending user
+ *
+ * @param pendingUserId - ID of the pending user to reject
+ * @returns Promise with success message
+ */
+export const rejectPendingUser = async (pendingUserId: string): Promise<{message: string}> => {
+  try {
+    const response = await apiClient.post<{message: string}>('/users/approve', {
+      pending_user_id: pendingUserId,
+      action: 'reject'
+    });
+    return response.data;
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || 'Failed to reject user';
     throw new Error(errorMessage);
   }
 };
