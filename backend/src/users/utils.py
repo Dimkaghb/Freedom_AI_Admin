@@ -5,12 +5,12 @@ import string
 import re
 from datetime import datetime
 from typing import Dict, Any
-from pymongo import MongoClient
 from pymongo.errors import DuplicateKeyError, ConnectionFailure, ServerSelectionTimeoutError
 import bcrypt
 from email_validator import validate_email, EmailNotValidError
 
 from ..settings import settings
+from ..database import get_database
 from .models import (
     UserInDB,
     UserCreateResponse,
@@ -105,29 +105,8 @@ def validate_email_format(email: str) -> str:
         raise ValueError(f"Invalid email format: {str(e)}")
 
 
-def get_mongodb_connection():
-    """
-    Get MongoDB connection using settings configuration.
-    
-    Returns:
-        MongoClient: MongoDB client instance
-        
-    Raises:
-        ConnectionFailure: If unable to connect to MongoDB
-    """
-    try:
-        client = MongoClient(
-            settings.MONGODB_URL,
-            connectTimeoutMS=settings.MONGODB_CONNECT_TIMEOUT,
-            serverSelectionTimeoutMS=settings.MONGODB_SERVER_SELECTION_TIMEOUT
-        )
-        # Test the connection
-        client.admin.command('ping')
-        logger.info("Successfully connected to MongoDB")
-        return client
-    except (ConnectionFailure, ServerSelectionTimeoutError) as e:
-        logger.error(f"Failed to connect to MongoDB: {str(e)}")
-        raise ConnectionFailure(f"Database connection failed: {str(e)}")
+# MongoDB connection is now managed by the global database manager
+# Use get_database() from ..database instead
 
 
 def add_user_by_admin(email: str, role: str, firstName: str = None, lastName: str = None) -> UserCreateResponse:
@@ -211,11 +190,9 @@ def add_user_by_admin(email: str, role: str, firstName: str = None, lastName: st
     }
     
     # Database operations
-    client = None
     try:
         # Get database connection
-        client = get_mongodb_connection()
-        db = client[settings.DATABASE_NAME]
+        db = get_database()
         users_collection = db[settings.USERS_COLLECTION]
         
         # Create unique index on email if it doesn't exist
@@ -261,7 +238,6 @@ def add_user_by_admin(email: str, role: str, firstName: str = None, lastName: st
     finally:
         # Clean up database connection
         if client:
-            client.close()
             logger.debug("Database connection closed")
 
 
@@ -297,14 +273,12 @@ def create_registration_link(link_data: RegistrationLinkCreate) -> RegistrationL
         ValueError: If company_id or department_id is invalid
         ConnectionFailure: If database connection fails
     """
-    client = None
     try:
         # Generate secure link ID
         link_id = secrets.token_urlsafe(32)
 
         # Validate company_id exists
-        client = get_mongodb_connection()
-        db = client[settings.DATABASE_NAME]
+        db = get_database()
         companies_collection = db[settings.COMPANIES_COLLECTION]
 
         if not ObjectId.is_valid(link_data.company_id):
@@ -377,9 +351,6 @@ def create_registration_link(link_data: RegistrationLinkCreate) -> RegistrationL
     except Exception as e:
         logger.error(f"Unexpected error while creating registration link: {str(e)}")
         raise Exception(f"Failed to create registration link: {str(e)}")
-    finally:
-        if client:
-            client.close()
 
 
 def verify_registration_link(link_id: str) -> Dict[str, Any]:
@@ -396,10 +367,8 @@ def verify_registration_link(link_id: str) -> Dict[str, Any]:
         ValueError: If link is invalid, expired, or already used
         ConnectionFailure: If database connection fails
     """
-    client = None
     try:
-        client = get_mongodb_connection()
-        db = client[settings.DATABASE_NAME]
+        db = get_database()
         links_collection = db[settings.USER_LINKS_COLLECTION]
 
         link_doc = links_collection.find_one({"link_id": link_id})
@@ -429,9 +398,6 @@ def verify_registration_link(link_id: str) -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"Unexpected error while verifying link: {str(e)}")
         raise Exception(f"Failed to verify link: {str(e)}")
-    finally:
-        if client:
-            client.close()
 
 
 def register_pending_user(registration_data: PendingUserCreate) -> PendingUserResponse:
@@ -451,7 +417,6 @@ def register_pending_user(registration_data: PendingUserCreate) -> PendingUserRe
         ValueError: If link is invalid, passwords don't match, or email exists
         ConnectionFailure: If database connection fails
     """
-    client = None
     try:
         # Validate passwords match
         if registration_data.password != registration_data.password_confirm:
@@ -463,8 +428,7 @@ def register_pending_user(registration_data: PendingUserCreate) -> PendingUserRe
         # Validate and normalize email
         normalized_email = validate_email_format(registration_data.email.strip().lower())
 
-        client = get_mongodb_connection()
-        db = client[settings.DATABASE_NAME]
+        db = get_database()
 
         # Check if email already exists in users or pending_users
         users_collection = db[settings.USERS_COLLECTION]
@@ -536,9 +500,6 @@ def register_pending_user(registration_data: PendingUserCreate) -> PendingUserRe
     except Exception as e:
         logger.error(f"Unexpected error during user registration: {str(e)}")
         raise Exception(f"Failed to register user: {str(e)}")
-    finally:
-        if client:
-            client.close()
 
 
 
@@ -562,13 +523,11 @@ def list_pending_users(admin_user: dict) -> list[PendingUserResponse]:
         ValueError: If admin doesn't have required permissions
         ConnectionFailure: If database connection fails
     """
-    client = None
     try:
         user_role = admin_user.get("role")
         user_company_id = admin_user.get("company_id")
 
-        client = get_mongodb_connection()
-        db = client[settings.DATABASE_NAME]
+        db = get_database()
         pending_users_collection = db[settings.PENDING_USERS_COLLECTION]
 
         # Build query based on role
@@ -615,9 +574,6 @@ def list_pending_users(admin_user: dict) -> list[PendingUserResponse]:
     except Exception as e:
         logger.error(f"Unexpected error while listing pending users: {str(e)}")
         raise Exception(f"Failed to list pending users: {str(e)}")
-    finally:
-        if client:
-            client.close()
 
 
 def approve_pending_user(pending_user_id: str, admin_user: dict):
@@ -635,13 +591,11 @@ def approve_pending_user(pending_user_id: str, admin_user: dict):
         ValueError: If pending user not found or admin lacks permission
         ConnectionFailure: If database connection fails
     """
-    client = None
     try:
         if not ObjectId.is_valid(pending_user_id):
             raise ValueError(f"Invalid pending_user_id format: {pending_user_id}")
 
-        client = get_mongodb_connection()
-        db = client[settings.DATABASE_NAME]
+        db = get_database()
         pending_users_collection = db[settings.PENDING_USERS_COLLECTION]
         users_collection = db[settings.USERS_COLLECTION]
 
@@ -758,9 +712,6 @@ def approve_pending_user(pending_user_id: str, admin_user: dict):
     except Exception as e:
         logger.error(f"Unexpected error while approving user: {str(e)}")
         raise Exception(f"Failed to approve user: {str(e)}")
-    finally:
-        if client:
-            client.close()
 
 
 def reject_pending_user(pending_user_id: str, admin_user: dict) -> dict:
@@ -778,13 +729,11 @@ def reject_pending_user(pending_user_id: str, admin_user: dict) -> dict:
         ValueError: If pending user not found or admin lacks permission
         ConnectionFailure: If database connection fails
     """
-    client = None
     try:
         if not ObjectId.is_valid(pending_user_id):
             raise ValueError(f"Invalid pending_user_id format: {pending_user_id}")
 
-        client = get_mongodb_connection()
-        db = client[settings.DATABASE_NAME]
+        db = get_database()
         pending_users_collection = db[settings.PENDING_USERS_COLLECTION]
 
         # Fetch pending user
@@ -862,9 +811,6 @@ def reject_pending_user(pending_user_id: str, admin_user: dict) -> dict:
     except Exception as e:
         logger.error(f"Unexpected error while rejecting user: {str(e)}")
         raise Exception(f"Failed to reject user: {str(e)}")
-    finally:
-        if client:
-            client.close()
 
 
 def list_users_with_filter(admin_user: dict, status_filter: str = "active"):
@@ -884,13 +830,11 @@ def list_users_with_filter(admin_user: dict, status_filter: str = "active"):
     """
     from .models import UserResponse
 
-    client = None
     try:
         if status_filter not in ["active", "blocked"]:
             raise ValueError(f"Invalid status filter: {status_filter}. Must be 'active' or 'blocked'")
 
-        client = get_mongodb_connection()
-        db = client[settings.DATABASE_NAME]
+        db = get_database()
 
         admin_role = admin_user.get("role")
         admin_company_id = admin_user.get("company_id")
@@ -940,6 +884,3 @@ def list_users_with_filter(admin_user: dict, status_filter: str = "active"):
     except Exception as e:
         logger.error(f"Unexpected error while listing users: {str(e)}")
         raise Exception(f"Failed to list users: {str(e)}")
-    finally:
-        if client:
-            client.close()

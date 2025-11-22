@@ -24,25 +24,12 @@ type FileItem = {
 
 export function FileManager() {
   const [searchQuery, setSearchQuery] = useState("")
-  const [currentPath, setCurrentPath] = useState<Array<{ id: string; name: string }>>([
-    { id: "root", name: "home" },
-    { id: "user", name: "user" },
-  ])
+  const [currentPath, setCurrentPath] = useState<Array<{ id: string; name: string }>>([])
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null)
 
-  const [folders, setFolders] = useState<FolderItem[]>([
-    { id: "1", name: "Documents", createdAt: new Date("2025-10-18"), parentId: null },
-    { id: "2", name: "Projects", createdAt: new Date("2025-10-17"), parentId: null },
-    { id: "3", name: "fg", createdAt: new Date("2025-10-16"), parentId: null },
-    { id: "4", name: "dima", createdAt: new Date("2025-10-16"), parentId: null },
-    { id: "5", name: "МарияМария", createdAt: new Date("2025-10-16"), parentId: null },
-  ])
+  const [folders, setFolders] = useState<FolderItem[]>([])
 
-  const [files, setFiles] = useState<FileItem[]>([
-    { id: "f1", name: "Book1qwre3.xlsx", size: 206.95, createdAt: new Date("2025-10-23"), parentId: null },
-    { id: "f2", name: "sample.xlsx", size: 7.83, createdAt: new Date("2025-10-21"), parentId: null },
-    { id: "f3", name: "c2fe42b9-a6db-415....xlsx", size: 87.82, createdAt: new Date("2025-10-21"), parentId: null },
-  ])
+  const [files, setFiles] = useState<FileItem[]>([])
 
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null)
   const [editingName, setEditingName] = useState("")
@@ -125,20 +112,14 @@ export function FileManager() {
   const handlePathClick = (index: number) => {
     const newPath = currentPath.slice(0, index + 1)
     setCurrentPath(newPath)
-    setCurrentFolderId(index < 2 ? null : newPath[newPath.length - 1].id)
+    setCurrentFolderId(newPath.length > 0 ? newPath[newPath.length - 1].id : null)
   }
 
   const handleGoBack = () => {
-    if (currentPath.length > 2) {
+    if (currentPath.length > 0) {
       const newPath = currentPath.slice(0, -1)
       setCurrentPath(newPath)
-      setCurrentFolderId(newPath[newPath.length - 1].id)
-    } else {
-      setCurrentPath([
-        { id: "root", name: "home" },
-        { id: "user", name: "user" },
-      ])
-      setCurrentFolderId(null)
+      setCurrentFolderId(newPath.length > 0 ? newPath[newPath.length - 1].id : null)
     }
   }
 
@@ -188,10 +169,7 @@ export function FileManager() {
             variant="ghost"
             className="w-full justify-start gap-3 text-gray-900 hover:bg-gray-100 font-medium"
             onClick={() => {
-              setCurrentPath([
-                { id: "root", name: "home" },
-                { id: "user", name: "user" },
-              ])
+              setCurrentPath([])
               setCurrentFolderId(null)
             }}
           >
@@ -303,7 +281,7 @@ export function FileManager() {
             <button
               onClick={handleGoBack}
               className="text-gray-500 hover:text-gray-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={currentPath.length <= 2}
+              disabled={currentPath.length === 0}
             >
               <ArrowLeft className="w-4 h-4" />
             </button>

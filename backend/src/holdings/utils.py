@@ -1,12 +1,12 @@
 import logging
 from datetime import datetime
 from typing import List, Optional
-from pymongo import MongoClient
 from pymongo.errors import DuplicateKeyError, ConnectionFailure, ServerSelectionTimeoutError
 from bson import ObjectId
 from bson.errors import InvalidId
 
 from ..settings import settings
+from ..database import get_database
 from .models import HoldingInDB, HoldingResponse
 
 # Configure logging
@@ -14,7 +14,10 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def get_mongodb_connection():
+# MongoDB connection is now managed by the global database manager
+# Use get_database() from ..database instead
+
+def _deprecated_get_mongodb_connection():
     """
     Get MongoDB connection using settings configuration.
 
@@ -90,11 +93,9 @@ def create_holding(name: str, description: Optional[str] = None) -> HoldingRespo
         "is_deleted": False
     }
 
-    client = None
     try:
         # Get database connection
-        client = get_mongodb_connection()
-        db = client[settings.DATABASE_NAME]
+        db = get_database()
         holdings_collection = db[settings.HOLDINGS_COLLECTION]
 
         # Create unique index on name (case-insensitive)
@@ -141,10 +142,6 @@ def create_holding(name: str, description: Optional[str] = None) -> HoldingRespo
         logger.error(error_msg)
         raise Exception(error_msg)
 
-    finally:
-        if client:
-            client.close()
-            logger.debug("Database connection closed")
 
 
 def get_all_holdings() -> List[HoldingResponse]:
@@ -159,10 +156,8 @@ def get_all_holdings() -> List[HoldingResponse]:
     """
     logger.info("Fetching all holdings")
 
-    client = None
     try:
-        client = get_mongodb_connection()
-        db = client[settings.DATABASE_NAME]
+        db = get_database()
         holdings_collection = db[settings.HOLDINGS_COLLECTION]
 
         # Fetch all non-deleted holdings
@@ -195,10 +190,6 @@ def get_all_holdings() -> List[HoldingResponse]:
         logger.error(error_msg)
         raise Exception(error_msg)
 
-    finally:
-        if client:
-            client.close()
-            logger.debug("Database connection closed")
 
 
 def get_holding_by_id(holding_id: str) -> Optional[HoldingResponse]:
@@ -220,10 +211,8 @@ def get_holding_by_id(holding_id: str) -> Optional[HoldingResponse]:
     # Validate ObjectId
     obj_id = validate_object_id(holding_id)
 
-    client = None
     try:
-        client = get_mongodb_connection()
-        db = client[settings.DATABASE_NAME]
+        db = get_database()
         holdings_collection = db[settings.HOLDINGS_COLLECTION]
 
         # Find holding by ID
@@ -254,10 +243,6 @@ def get_holding_by_id(holding_id: str) -> Optional[HoldingResponse]:
         logger.error(error_msg)
         raise Exception(error_msg)
 
-    finally:
-        if client:
-            client.close()
-            logger.debug("Database connection closed")
 
 
 def update_holding(holding_id: str, name: str, description: Optional[str] = None) -> HoldingResponse:
@@ -284,10 +269,8 @@ def update_holding(holding_id: str, name: str, description: Optional[str] = None
 
     obj_id = validate_object_id(holding_id)
 
-    client = None
     try:
-        client = get_mongodb_connection()
-        db = client[settings.DATABASE_NAME]
+        db = get_database()
         holdings_collection = db[settings.HOLDINGS_COLLECTION]
 
         # Check if holding exists
@@ -339,10 +322,6 @@ def update_holding(holding_id: str, name: str, description: Optional[str] = None
         logger.error(error_msg)
         raise Exception(error_msg)
 
-    finally:
-        if client:
-            client.close()
-            logger.debug("Database connection closed")
 
 
 def delete_holding(holding_id: str) -> bool:
@@ -364,10 +343,8 @@ def delete_holding(holding_id: str) -> bool:
     # Validate ObjectId
     obj_id = validate_object_id(holding_id)
 
-    client = None
     try:
-        client = get_mongodb_connection()
-        db = client[settings.DATABASE_NAME]
+        db = get_database()
         holdings_collection = db[settings.HOLDINGS_COLLECTION]
 
         # Check if holding exists
@@ -399,7 +376,3 @@ def delete_holding(holding_id: str) -> bool:
         logger.error(error_msg)
         raise Exception(error_msg)
 
-    finally:
-        if client:
-            client.close()
-            logger.debug("Database connection closed")

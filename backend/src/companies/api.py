@@ -6,6 +6,7 @@ from typing import Optional
 
 from .models import CompanyCreate, CompanyUpdate, CompanyResponse, CompanyListResponse
 from ..auth.dependencies import get_current_user, require_admin
+from ..auth.rbac import get_user_scope, require_resource_access
 from .utils import (
     create_company as db_create_company,
     get_all_companies as db_get_all_companies,
@@ -90,19 +91,21 @@ def list_companies_endpoint(
     current_user: dict = Depends(get_current_user)
 ):
     """
-    Get all companies, optionally filtered by holding.
+    Get all companies based on user role and optional holding filter.
 
-    This endpoint retrieves all active (non-deleted) companies from the database,
-    sorted by creation date (newest first). Can be filtered by holding_id.
+    Role-based access:
+    - Superadmin: All companies (optionally filtered by holding_id)
+    - Admin: Only their company
+    - Director/User: Only their company (read-only)
 
     Args:
-        holding_id (str, optional): Filter companies by holding ID
+        holding_id (str, optional): Filter companies by holding ID (superadmin only)
 
     Returns:
         CompanyListResponse: List of companies with total count
 
     Raises:
-        HTTPException: 500 for server/database errors
+        HTTPException: 403 for unauthorized access, 500 for server/database errors
 
     Example Response:
         ```json
@@ -123,13 +126,31 @@ def list_companies_endpoint(
         ```
     """
     try:
-        companies = db_get_all_companies(holding_id=holding_id)
+        # Get user scope for filtering
+        scope = get_user_scope(current_user)
 
-        logger.info(f"Retrieved {len(companies)} companies via API")
+        # Get all companies (may be filtered by holding_id)
+        all_companies = db_get_all_companies(holding_id=holding_id)
+
+        # Apply role-based filtering
+        if scope.is_superadmin:
+            # Superadmin sees all companies (respects holding_id filter)
+            filtered_companies = all_companies
+        elif scope.company_id:
+            # Admin/Director/User see only their company
+            filtered_companies = [c for c in all_companies if c.id == scope.company_id]
+        else:
+            # No company access
+            filtered_companies = []
+
+        logger.info(
+            f"Retrieved {len(filtered_companies)} companies for user "
+            f"{current_user.get('email')} (role: {scope.role})"
+        )
 
         return CompanyListResponse(
-            companies=companies,
-            total=len(companies)
+            companies=filtered_companies,
+            total=len(filtered_companies)
         )
 
     except ConnectionFailure as e:
@@ -157,6 +178,10 @@ def get_company_endpoint(
     """
     Get a specific company by ID.
 
+    Users can only access companies they have permission to view:
+    - Superadmin: Any company
+    - Admin/Director/User: Only their own company
+
     Args:
         company_id (str): MongoDB ObjectId as string
 
@@ -165,10 +190,25 @@ def get_company_endpoint(
 
     Raises:
         HTTPException: 400 for invalid ID format,
+                      403 for unauthorized access,
                       404 if company not found,
                       500 for server/database errors
     """
     try:
+        # Check if user has access to this company
+        try:
+            require_resource_access(
+                current_user=current_user,
+                resource_type="company",
+                resource_id=company_id
+            )
+        except PermissionError as e:
+            logger.warning(f"Access denied: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to access this company"
+            )
+
         company = db_get_company_by_id(company_id)
 
         if not company:

@@ -5,6 +5,7 @@ import logging
 
 from .models import HoldingCreate, HoldingUpdate, HoldingResponse, HoldingListResponse
 from ..auth.dependencies import get_current_user, require_admin
+from ..auth.rbac import get_user_scope, require_resource_access
 from .utils import (
     create_holding as db_create_holding,
     get_all_holdings as db_get_all_holdings,
@@ -82,16 +83,17 @@ def create_holding_endpoint(holding_data: HoldingCreate, current_admin: dict = D
 @router.get("/list", response_model=HoldingListResponse)
 def list_holdings_endpoint(current_user: dict = Depends(get_current_user)):
     """
-    Get all holdings.
+    Get all holdings based on user role.
 
-    This endpoint retrieves all active (non-deleted) holdings from the database,
-    sorted by creation date (newest first).
+    This endpoint retrieves holdings that the user has access to:
+    - Superadmin: All holdings
+    - Admin/Director/User: Only their associated holding (if any)
 
     Returns:
         HoldingListResponse: List of holdings with total count
 
     Raises:
-        HTTPException: 500 for server/database errors
+        HTTPException: 403 for unauthorized access, 500 for server/database errors
 
     Example Response:
         ```json
@@ -110,13 +112,31 @@ def list_holdings_endpoint(current_user: dict = Depends(get_current_user)):
         ```
     """
     try:
-        holdings = db_get_all_holdings()
+        # Get user scope for filtering
+        scope = get_user_scope(current_user)
 
-        logger.info(f"Retrieved {len(holdings)} holdings via API")
+        # Get all holdings (will be filtered based on scope)
+        all_holdings = db_get_all_holdings()
+
+        # Apply role-based filtering
+        if scope.is_superadmin:
+            # Superadmin sees all holdings
+            filtered_holdings = all_holdings
+        elif scope.holding_id:
+            # Other roles see only their holding (if they have one)
+            filtered_holdings = [h for h in all_holdings if h.id == scope.holding_id]
+        else:
+            # No holding access
+            filtered_holdings = []
+
+        logger.info(
+            f"Retrieved {len(filtered_holdings)} holdings for user "
+            f"{current_user.get('email')} (role: {scope.role})"
+        )
 
         return HoldingListResponse(
-            holdings=holdings,
-            total=len(holdings)
+            holdings=filtered_holdings,
+            total=len(filtered_holdings)
         )
 
     except ConnectionFailure as e:
@@ -144,6 +164,10 @@ def get_holding_endpoint(
     """
     Get a specific holding by ID.
 
+    Users can only access holdings they have permission to view:
+    - Superadmin: Any holding
+    - Admin/Director/User: Only their associated holding
+
     Args:
         holding_id (str): MongoDB ObjectId as string
 
@@ -152,10 +176,25 @@ def get_holding_endpoint(
 
     Raises:
         HTTPException: 400 for invalid ID format,
+                      403 for unauthorized access,
                       404 if holding not found,
                       500 for server/database errors
     """
     try:
+        # Check if user has access to this holding
+        try:
+            require_resource_access(
+                current_user=current_user,
+                resource_type="holding",
+                resource_id=holding_id
+            )
+        except PermissionError as e:
+            logger.warning(f"Access denied: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to access this holding"
+            )
+
         holding = db_get_holding_by_id(holding_id)
 
         if not holding:

@@ -1,15 +1,18 @@
 import logging
 from datetime import datetime
 from typing import Dict, Any, List
-from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
 from bson import ObjectId
 from ..settings import settings
+from ..database import get_database
 
 logger = logging.getLogger(__name__)
 
 
-def get_mongodb_connection():
+# MongoDB connection is now managed by the global database manager
+# Use get_database() from ..database instead
+
+def _deprecated_get_mongodb_connection():
     """
     Establish connection to MongoDB
 
@@ -55,8 +58,7 @@ def list_folders_for_user(user: dict) -> List[Dict[str, Any]]:
         ValueError: If user data is invalid
     """
     try:
-        client = get_mongodb_connection()
-        db = client[settings.DATABASE_NAME]
+        db = get_database()
         folders_collection = db[settings.FOLDERS_COLLECTION]
 
         user_id = str(user.get("_id"))

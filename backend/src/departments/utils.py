@@ -1,12 +1,12 @@
 import logging
 from datetime import datetime
 from typing import List, Optional
-from pymongo import MongoClient
 from pymongo.errors import DuplicateKeyError, ConnectionFailure, ServerSelectionTimeoutError
 from bson import ObjectId
 from bson.errors import InvalidId
 
 from ..settings import settings
+from ..database import get_database
 from .models import DepartmentInDB, DepartmentResponse
 
 # Configure logging
@@ -14,7 +14,10 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def get_mongodb_connection():
+# MongoDB connection is now managed by the global database manager
+# Use get_database() from ..database instead
+
+def _deprecated_get_mongodb_connection():
     """
     Get MongoDB connection using settings configuration.
 
@@ -60,12 +63,11 @@ def validate_object_id(object_id: str, field_name: str = "ID") -> ObjectId:
         raise ValueError(f"Invalid {field_name} format: {object_id}")
 
 
-def validate_company_exists(client: MongoClient, company_id: str) -> bool:
+def validate_company_exists(company_id: str) -> bool:
     """
     Validate that a company exists in the database.
 
     Args:
-        client (MongoClient): MongoDB client instance
         company_id (str): Company ObjectId as string
 
     Returns:
@@ -76,7 +78,7 @@ def validate_company_exists(client: MongoClient, company_id: str) -> bool:
     """
     company_obj_id = validate_object_id(company_id, "company_id")
 
-    db = client[settings.DATABASE_NAME]
+    db = get_database()
     companies_collection = db[settings.COMPANIES_COLLECTION]
 
     company = companies_collection.find_one({
@@ -118,19 +120,17 @@ def create_department(
     if not name or not name.strip():
         raise ValueError("Department name is required and cannot be empty")
 
-    client = None
     try:
         # Get database connection
-        client = get_mongodb_connection()
+        db = get_database()
 
         # Validate that company exists
-        validate_company_exists(client, company_id)
+        validate_company_exists(company_id)
 
         # Validate manager_id if provided
         if manager_id:
             validate_object_id(manager_id, "manager_id")
 
-        db = client[settings.DATABASE_NAME]
         departments_collection = db[settings.DEPARTMENTS_COLLECTION]
 
         # Create unique index on name within each company (case-insensitive)
@@ -195,10 +195,6 @@ def create_department(
         logger.error(error_msg)
         raise Exception(error_msg)
 
-    finally:
-        if client:
-            client.close()
-            logger.debug("Database connection closed")
 
 
 def get_all_departments(company_id: Optional[str] = None) -> List[DepartmentResponse]:
@@ -216,10 +212,8 @@ def get_all_departments(company_id: Optional[str] = None) -> List[DepartmentResp
     """
     logger.info(f"Fetching all departments{f' for company {company_id}' if company_id else ''}")
 
-    client = None
     try:
-        client = get_mongodb_connection()
-        db = client[settings.DATABASE_NAME]
+        db = get_database()
         departments_collection = db[settings.DEPARTMENTS_COLLECTION]
 
         # Build query
@@ -259,10 +253,6 @@ def get_all_departments(company_id: Optional[str] = None) -> List[DepartmentResp
         logger.error(error_msg)
         raise Exception(error_msg)
 
-    finally:
-        if client:
-            client.close()
-            logger.debug("Database connection closed")
 
 
 def get_department_by_id(department_id: str) -> Optional[DepartmentResponse]:
@@ -284,10 +274,8 @@ def get_department_by_id(department_id: str) -> Optional[DepartmentResponse]:
     # Validate ObjectId
     obj_id = validate_object_id(department_id, "department_id")
 
-    client = None
     try:
-        client = get_mongodb_connection()
-        db = client[settings.DATABASE_NAME]
+        db = get_database()
         departments_collection = db[settings.DEPARTMENTS_COLLECTION]
 
         # Find department by ID
@@ -320,10 +308,6 @@ def get_department_by_id(department_id: str) -> Optional[DepartmentResponse]:
         logger.error(error_msg)
         raise Exception(error_msg)
 
-    finally:
-        if client:
-            client.close()
-            logger.debug("Database connection closed")
 
 
 def update_department(
@@ -360,10 +344,8 @@ def update_department(
     if manager_id:
         validate_object_id(manager_id, "manager_id")
 
-    client = None
     try:
-        client = get_mongodb_connection()
-        db = client[settings.DATABASE_NAME]
+        db = get_database()
         departments_collection = db[settings.DEPARTMENTS_COLLECTION]
 
         # Check if department exists
@@ -417,10 +399,6 @@ def update_department(
         logger.error(error_msg)
         raise Exception(error_msg)
 
-    finally:
-        if client:
-            client.close()
-            logger.debug("Database connection closed")
 
 
 def delete_department(department_id: str) -> bool:
@@ -442,10 +420,8 @@ def delete_department(department_id: str) -> bool:
     # Validate ObjectId
     obj_id = validate_object_id(department_id, "department_id")
 
-    client = None
     try:
-        client = get_mongodb_connection()
-        db = client[settings.DATABASE_NAME]
+        db = get_database()
         departments_collection = db[settings.DEPARTMENTS_COLLECTION]
 
         # Check if department exists
@@ -477,7 +453,3 @@ def delete_department(department_id: str) -> bool:
         logger.error(error_msg)
         raise Exception(error_msg)
 
-    finally:
-        if client:
-            client.close()
-            logger.debug("Database connection closed")

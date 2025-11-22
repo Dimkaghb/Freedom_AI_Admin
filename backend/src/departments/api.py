@@ -6,6 +6,7 @@ from typing import Optional
 
 from .models import DepartmentCreate, DepartmentUpdate, DepartmentResponse, DepartmentListResponse
 from ..auth.dependencies import get_current_user, require_admin
+from ..auth.rbac import get_user_scope, require_resource_access
 from .utils import (
     create_department as db_create_department,
     get_all_departments as db_get_all_departments,
@@ -90,19 +91,21 @@ def list_departments_endpoint(
     current_user: dict = Depends(get_current_user)
 ):
     """
-    Get all departments, optionally filtered by company.
+    Get all departments based on user role and optional company filter.
 
-    This endpoint retrieves all active (non-deleted) departments from the database,
-    sorted by creation date (newest first). Can be filtered by company_id.
+    Role-based access:
+    - Superadmin: All departments (optionally filtered by company_id)
+    - Admin: All departments in their company
+    - Director/User: Only their own department
 
     Args:
-        company_id (str, optional): Filter departments by company ID
+        company_id (str, optional): Filter departments by company ID (superadmin/admin only)
 
     Returns:
         DepartmentListResponse: List of departments with total count
 
     Raises:
-        HTTPException: 500 for server/database errors
+        HTTPException: 403 for unauthorized access, 500 for server/database errors
 
     Example Response:
         ```json
@@ -123,13 +126,40 @@ def list_departments_endpoint(
         ```
     """
     try:
-        departments = db_get_all_departments(company_id=company_id)
+        # Get user scope for filtering
+        scope = get_user_scope(current_user)
 
-        logger.info(f"Retrieved {len(departments)} departments via API")
+        # Get all departments (may be filtered by company_id)
+        all_departments = db_get_all_departments(company_id=company_id)
+
+        # Apply role-based filtering
+        if scope.is_superadmin:
+            # Superadmin sees all departments (respects company_id filter)
+            filtered_departments = all_departments
+        elif scope.is_admin and scope.company_id:
+            # Admin sees all departments in their company
+            filtered_departments = [
+                d for d in all_departments
+                if d.company_id == scope.company_id
+            ]
+        elif scope.department_id:
+            # Director/User see only their department
+            filtered_departments = [
+                d for d in all_departments
+                if d.id == scope.department_id
+            ]
+        else:
+            # No department access
+            filtered_departments = []
+
+        logger.info(
+            f"Retrieved {len(filtered_departments)} departments for user "
+            f"{current_user.get('email')} (role: {scope.role})"
+        )
 
         return DepartmentListResponse(
-            departments=departments,
-            total_count=len(departments)
+            departments=filtered_departments,
+            total_count=len(filtered_departments)
         )
 
     except ConnectionFailure as e:
@@ -157,6 +187,11 @@ def get_department_endpoint(
     """
     Get a specific department by ID.
 
+    Users can only access departments they have permission to view:
+    - Superadmin: Any department
+    - Admin: Departments in their company
+    - Director/User: Only their own department
+
     Args:
         department_id (str): MongoDB ObjectId as string
 
@@ -165,6 +200,7 @@ def get_department_endpoint(
 
     Raises:
         HTTPException: 400 for invalid ID format,
+                      403 for unauthorized access,
                       404 if department not found,
                       500 for server/database errors
     """
@@ -175,6 +211,21 @@ def get_department_endpoint(
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Department not found with ID: {department_id}"
+            )
+
+        # Check if user has access to this department
+        try:
+            require_resource_access(
+                current_user=current_user,
+                resource_type="department",
+                resource_id=department_id,
+                company_id=department.company_id
+            )
+        except PermissionError as e:
+            logger.warning(f"Access denied: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to access this department"
             )
 
         logger.info(f"Retrieved department {department_id} via API")

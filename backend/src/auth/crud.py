@@ -4,9 +4,9 @@ import logging
 from typing import Optional
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from pymongo import MongoClient
 
 from ..settings import settings
+from ..database import get_database
 
 logger = logging.getLogger(__name__)
 
@@ -56,35 +56,16 @@ def verify_token(token: str) -> Optional[dict]:
         return None
 
 
-def get_mongodb_client():
-    """Get MongoDB client"""
-    try:
-        client = MongoClient(settings.MONGODB_URL)
-        client.admin.command('ping')
-        return client
-    except Exception as e:
-        logger.error(f"Failed to connect to MongoDB: {e}")
-        return None
-
 def get_user_by_email(email: str):
     """Get user by email from MongoDB"""
-    client = None
     try:
-        client = get_mongodb_client()
-        if not client:
-            logger.error("Could not connect to MongoDB")
-            return None
-
-        db = client[settings.DATABASE_NAME]
+        db = get_database()
         users_collection = db[settings.USERS_COLLECTION]
         user = users_collection.find_one({"email": email})
         return user
     except Exception as e:
         logger.error(f"Error querying MongoDB: {e}")
         return None
-    finally:
-        if client:
-            client.close()
 
 
 async def authenticate_user(email: str, password: str):
@@ -101,14 +82,8 @@ async def authenticate_user(email: str, password: str):
 
 async def update_user_profile(email: str, name: str):
     """Update user profile information"""
-    client = None
     try:
-        client = get_mongodb_client()
-        if not client:
-            logger.error("Could not connect to MongoDB")
-            return None
-
-        db = client[settings.DATABASE_NAME]
+        db = get_database()
         users_collection = db[settings.USERS_COLLECTION]
 
         # Update in MongoDB
@@ -125,8 +100,5 @@ async def update_user_profile(email: str, name: str):
     except Exception as e:
         logger.error(f"Error updating user profile in MongoDB: {e}")
         return None
-    finally:
-        if client:
-            client.close()
 
     return None

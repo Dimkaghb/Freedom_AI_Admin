@@ -2,7 +2,7 @@
 
 "use client"
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -31,7 +31,8 @@ import {
   LayoutDashboard,
   ChevronRight,
   Home,
-  BookOpen
+  BookOpen,
+  Loader2
 } from "lucide-react";
 import { VisitorsAreaChart } from "@/components/charts/VisitorsAreaChart";
 import { useAuth } from '@/shared/stores/authstore';
@@ -52,6 +53,23 @@ import {
   SidebarInset,
 } from "@/components/ui/sidebar";
 import { AddUserForm } from './addUser';
+import { AddDepartmentForm } from './addDepartment';
+import { AddHoldingForm } from './addHolding';
+import { AddCompanyForm } from './addCompany';
+import { getDashboardStats, handleDashboardError } from '@/services/dashboard.api';
+import type { DashboardResponse } from '@/types/dashboard';
+import {
+  isSuperadminDashboard,
+  isAdminDashboard,
+  isDirectorDashboard,
+  isUserDashboard,
+} from '@/types/dashboard';
+import {
+  SuperadminDashboardView,
+  AdminDashboardView,
+  DirectorDashboardView,
+  UserDashboardView,
+} from './dashboard-views';
 
 // Enhanced type definitions for dashboard components
 interface StatCardProps {
@@ -364,17 +382,37 @@ function RecentRequestsTable() {
 export const Dashboard = () => {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedTimeRange, setSelectedTimeRange] = useState<string>('Последние 3 месяца');
-  const [currentView, setCurrentView] = useState<'dashboard' | 'addUser' | 'knowledgeBase'>('dashboard');
+  const [currentView, setCurrentView] = useState<'dashboard' | 'addUser' | 'addDepartment' | 'addHolding' | 'addCompany' | 'knowledgeBase'>('dashboard');
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
-  // Пустые данные - должны загружаться из API
-  const dashboardStats: DashboardStats = {
-    holdings: null,
-    companies: null,
-    totalUsers: null,
-    requests: null
-  };
+  // Dashboard data state
+  const [dashboardData, setDashboardData] = useState<DashboardResponse | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch dashboard data on mount
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await getDashboardStats({
+          include_recent: true,
+          recent_limit: 10
+        });
+        setDashboardData(data);
+      } catch (err) {
+        const errorMessage = handleDashboardError(err);
+        setError(errorMessage);
+        console.error('Dashboard fetch error:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+  }, []);
 
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(event.target.value);
@@ -497,51 +535,87 @@ export const Dashboard = () => {
           </p>
         </div>
 
-        {/* Statistics Cards - Responsive grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
-          <StatCard
-            title="Холдинги"
-            value={dashboardStats.holdings !== null ? dashboardStats.holdings : '-'}
-            description="Данные загружаются"
-            icon={<Building className="h-4 w-4" />}
-          />
-          <StatCard
-            title="Компании"
-            value={dashboardStats.companies !== null ? dashboardStats.companies : '-'}
-            description="Данные загружаются"
-            icon={<Building2 className="h-4 w-4" />}
-          />
-          <StatCard
-            title="Пользователи"
-            value={dashboardStats.totalUsers !== null ? dashboardStats.totalUsers : '-'}
-            description="Данные загружаются"
-            icon={<Users className="h-4 w-4" />}
-          />
-          <StatCard
-            title="Заявки"
-            value={dashboardStats.requests !== null ? dashboardStats.requests : '-'}
-            description="Данные загружаются"
-            icon={<FileText className="h-4 w-4" />}
-          />
-        </div>
-
-        {/* Charts Section - Full width */}
-        <div className="w-full">
-          <VisitorsAreaChart />
-        </div>
-
-        {/* Bottom Section - Recent Requests and Structure Management */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Recent Requests Table */}
-          <div className="lg:col-span-1">
-            <RecentRequestsTable />
+        {/* Loading State */}
+        {loading && (
+          <div className="flex items-center justify-center py-12">
+            <div className="flex flex-col items-center gap-3">
+              <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
+              <p className="text-sm text-gray-500">Загрузка данных...</p>
+            </div>
           </div>
+        )}
 
-          {/* Structure Management */}
-          <div className="lg:col-span-1">
-            <StructureManagement />
-          </div>
-        </div>
+        {/* Error State */}
+        {error && !loading && (
+          <Card className="border-red-200 bg-red-50">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <AlertCircle className="h-5 w-5 text-red-600" />
+                <div>
+                  <h3 className="font-medium text-red-900">Ошибка загрузки данных</h3>
+                  <p className="text-sm text-red-700 mt-1">{error}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Dashboard Data */}
+        {!loading && !error && dashboardData && (
+          <>
+            {/* Statistics Cards - Responsive grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
+              <StatCard
+                title="Холдинги"
+                value={dashboardData.counts.holdings}
+                description={`${dashboardData.counts.holdings} всего`}
+                icon={<Building className="h-4 w-4" />}
+              />
+              <StatCard
+                title="Компании"
+                value={dashboardData.counts.companies}
+                description={`${dashboardData.counts.companies} всего`}
+                icon={<Building2 className="h-4 w-4" />}
+              />
+              <StatCard
+                title="Отделы"
+                value={dashboardData.counts.departments}
+                description={`${dashboardData.counts.departments} всего`}
+                icon={<Layers className="h-4 w-4" />}
+              />
+              <StatCard
+                title="Пользователи"
+                value={dashboardData.counts.users}
+                description={`${dashboardData.counts.active_users} активных`}
+                icon={<Users className="h-4 w-4" />}
+              />
+            </div>
+
+            {/* Role-Based Dashboard Content */}
+            <div className="mt-6">
+              {isSuperadminDashboard(dashboardData) && (
+                <SuperadminDashboardView
+                  data={dashboardData}
+                  onCreateHolding={() => setCurrentView('addHolding')}
+                  onCreateCompany={() => setCurrentView('addCompany')}
+                  onCreateDepartment={() => setCurrentView('addDepartment')}
+                />
+              )}
+              {isAdminDashboard(dashboardData) && (
+                <AdminDashboardView
+                  data={dashboardData}
+                  onCreateDepartment={() => setCurrentView('addDepartment')}
+                />
+              )}
+              {isDirectorDashboard(dashboardData) && (
+                <DirectorDashboardView data={dashboardData} />
+              )}
+              {isUserDashboard(dashboardData) && (
+                <UserDashboardView data={dashboardData} />
+              )}
+            </div>
+          </>
+        )}
               </div>
             ) : currentView === 'addUser' ? (
               <div className="container mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
@@ -557,6 +631,51 @@ export const Dashboard = () => {
 
                 {/* Add User Form */}
                 <AddUserForm />
+              </div>
+            ) : currentView === 'addDepartment' ? (
+              <div className="container mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+                {/* Header Section */}
+                <div className="space-y-1">
+                  <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
+                    Создать отдел
+                  </h1>
+                  <p className="text-sm text-muted-foreground">
+                    Создайте новый отдел компании
+                  </p>
+                </div>
+
+                {/* Add Department Form */}
+                <AddDepartmentForm onClose={() => setCurrentView('dashboard')} />
+              </div>
+            ) : currentView === 'addHolding' ? (
+              <div className="container mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+                {/* Header Section */}
+                <div className="space-y-1">
+                  <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
+                    Создать холдинг
+                  </h1>
+                  <p className="text-sm text-muted-foreground">
+                    Создайте новый холдинг
+                  </p>
+                </div>
+
+                {/* Add Holding Form */}
+                <AddHoldingForm onClose={() => setCurrentView('dashboard')} />
+              </div>
+            ) : currentView === 'addCompany' ? (
+              <div className="container mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+                {/* Header Section */}
+                <div className="space-y-1">
+                  <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
+                    Создать компанию
+                  </h1>
+                  <p className="text-sm text-muted-foreground">
+                    Создайте новую компанию
+                  </p>
+                </div>
+
+                {/* Add Company Form */}
+                <AddCompanyForm onClose={() => setCurrentView('dashboard')} />
               </div>
             ) : currentView === 'knowledgeBase' ? (
               <div className="container mx-auto p-4 sm:p-6 lg:p-8 space-y-6">

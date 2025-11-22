@@ -1,12 +1,12 @@
 import logging
 from datetime import datetime
 from typing import List, Optional
-from pymongo import MongoClient
 from pymongo.errors import DuplicateKeyError, ConnectionFailure, ServerSelectionTimeoutError
 from bson import ObjectId
 from bson.errors import InvalidId
 
 from ..settings import settings
+from ..database import get_database
 from .models import CompanyInDB, CompanyResponse
 
 # Configure logging
@@ -14,29 +14,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def get_mongodb_connection():
-    """
-    Get MongoDB connection using settings configuration.
-
-    Returns:
-        MongoClient: MongoDB client instance
-
-    Raises:
-        ConnectionFailure: If unable to connect to MongoDB
-    """
-    try:
-        client = MongoClient(
-            settings.MONGODB_URL,
-            connectTimeoutMS=settings.MONGODB_CONNECT_TIMEOUT,
-            serverSelectionTimeoutMS=settings.MONGODB_SERVER_SELECTION_TIMEOUT
-        )
-        # Test the connection
-        client.admin.command('ping')
-        logger.info("Successfully connected to MongoDB")
-        return client
-    except (ConnectionFailure, ServerSelectionTimeoutError) as e:
-        logger.error(f"Failed to connect to MongoDB: {str(e)}")
-        raise ConnectionFailure(f"Database connection failed: {str(e)}")
+# MongoDB connection is now managed by the global database manager
+# Use get_database() from ..database instead
 
 
 def validate_object_id(object_id: str, field_name: str = "ID") -> ObjectId:
@@ -60,12 +39,11 @@ def validate_object_id(object_id: str, field_name: str = "ID") -> ObjectId:
         raise ValueError(f"Invalid {field_name} format: {object_id}")
 
 
-def validate_holding_exists(client: MongoClient, holding_id: str) -> bool:
+def validate_holding_exists(holding_id: str) -> bool:
     """
     Validate that a holding exists in the database.
 
     Args:
-        client (MongoClient): MongoDB client instance
         holding_id (str): Holding ObjectId as string
 
     Returns:
@@ -76,7 +54,7 @@ def validate_holding_exists(client: MongoClient, holding_id: str) -> bool:
     """
     holding_obj_id = validate_object_id(holding_id, "holding_id")
 
-    db = client[settings.DATABASE_NAME]
+    db = get_database()
     holdings_collection = db[settings.HOLDINGS_COLLECTION]
 
     holding = holdings_collection.find_one({
@@ -118,20 +96,18 @@ def create_company(
     if not name or not name.strip():
         raise ValueError("Company name is required and cannot be empty")
 
-    client = None
     try:
         # Get database connection
-        client = get_mongodb_connection()
+        db = get_database()
 
         # Validate that holding exists
-        validate_holding_exists(client, holding_id)
+        validate_holding_exists(holding_id)
 
         # Validate admin_id if provided
         if admin_id:
             validate_object_id(admin_id, "admin_id")
 
-        db = client[settings.DATABASE_NAME]
-        companies_collection = db[settings.COMPANIES_COLLECTION]
+            companies_collection = db[settings.COMPANIES_COLLECTION]
 
         # Create unique index on name within each holding (case-insensitive)
         companies_collection.create_index(
@@ -195,10 +171,6 @@ def create_company(
         logger.error(error_msg)
         raise Exception(error_msg)
 
-    finally:
-        if client:
-            client.close()
-            logger.debug("Database connection closed")
 
 
 def get_all_companies(holding_id: Optional[str] = None) -> List[CompanyResponse]:
@@ -216,10 +188,8 @@ def get_all_companies(holding_id: Optional[str] = None) -> List[CompanyResponse]
     """
     logger.info(f"Fetching all companies{f' for holding {holding_id}' if holding_id else ''}")
 
-    client = None
     try:
-        client = get_mongodb_connection()
-        db = client[settings.DATABASE_NAME]
+        db = get_database()
         companies_collection = db[settings.COMPANIES_COLLECTION]
 
         # Build query
@@ -259,10 +229,6 @@ def get_all_companies(holding_id: Optional[str] = None) -> List[CompanyResponse]
         logger.error(error_msg)
         raise Exception(error_msg)
 
-    finally:
-        if client:
-            client.close()
-            logger.debug("Database connection closed")
 
 
 def get_company_by_id(company_id: str) -> Optional[CompanyResponse]:
@@ -284,10 +250,8 @@ def get_company_by_id(company_id: str) -> Optional[CompanyResponse]:
     # Validate ObjectId
     obj_id = validate_object_id(company_id, "company_id")
 
-    client = None
     try:
-        client = get_mongodb_connection()
-        db = client[settings.DATABASE_NAME]
+        db = get_database()
         companies_collection = db[settings.COMPANIES_COLLECTION]
 
         # Find company by ID
@@ -320,10 +284,6 @@ def get_company_by_id(company_id: str) -> Optional[CompanyResponse]:
         logger.error(error_msg)
         raise Exception(error_msg)
 
-    finally:
-        if client:
-            client.close()
-            logger.debug("Database connection closed")
 
 
 def update_company(
@@ -360,10 +320,8 @@ def update_company(
     if admin_id:
         validate_object_id(admin_id, "admin_id")
 
-    client = None
     try:
-        client = get_mongodb_connection()
-        db = client[settings.DATABASE_NAME]
+        db = get_database()
         companies_collection = db[settings.COMPANIES_COLLECTION]
 
         # Check if company exists
@@ -417,10 +375,6 @@ def update_company(
         logger.error(error_msg)
         raise Exception(error_msg)
 
-    finally:
-        if client:
-            client.close()
-            logger.debug("Database connection closed")
 
 
 def delete_company(company_id: str) -> bool:
@@ -442,10 +396,8 @@ def delete_company(company_id: str) -> bool:
     # Validate ObjectId
     obj_id = validate_object_id(company_id, "company_id")
 
-    client = None
     try:
-        client = get_mongodb_connection()
-        db = client[settings.DATABASE_NAME]
+        db = get_database()
         companies_collection = db[settings.COMPANIES_COLLECTION]
 
         # Check if company exists
@@ -477,7 +429,3 @@ def delete_company(company_id: str) -> bool:
         logger.error(error_msg)
         raise Exception(error_msg)
 
-    finally:
-        if client:
-            client.close()
-            logger.debug("Database connection closed")
