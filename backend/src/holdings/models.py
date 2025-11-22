@@ -21,6 +21,7 @@ class HoldingResponse(BaseModel):
     id: str = Field(..., description="MongoDB ObjectId as string")
     name: str
     description: Optional[str] = None
+    company_ids: List[str] = Field(default_factory=list, description="List of company IDs belonging to this holding")
     created_at: datetime
     updated_at: datetime
 
@@ -30,6 +31,7 @@ class HoldingResponse(BaseModel):
                 "id": "507f1f77bcf86cd799439011",
                 "name": "TechCorp Holdings",
                 "description": "Technology conglomerate",
+                "company_ids": ["507f1f77bcf86cd799439012", "507f1f77bcf86cd799439013"],
                 "created_at": "2024-01-01T00:00:00",
                 "updated_at": "2024-01-01T00:00:00"
             }
@@ -41,6 +43,7 @@ class HoldingInDB(BaseModel):
     """Model for holding document in MongoDB"""
     name: str
     description: Optional[str] = None
+    company_ids: List[str] = Field(default_factory=list, description="List of company IDs belonging to this holding")
     created_at: datetime
     updated_at: datetime
     is_deleted: bool = False  # Soft delete flag

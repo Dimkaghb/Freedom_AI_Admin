@@ -10,6 +10,7 @@ import { CheckIcon, XIcon, PlusIcon, AlertCircleIcon, RefreshCwIcon, UserPlusIco
 import { createDepartment } from "@/services/department.api"
 import { listHoldings } from "@/services/holding.api"
 import { listCompanies } from "@/services/company.api"
+import { listUsers, type UserResponse } from "@/services/user.api"
 import { useAuth } from "@/shared/stores/authstore"
 
 // Types and interfaces for better type safety
@@ -79,8 +80,16 @@ export function AddDepartmentForm({ onAddDepartment, isLoading: externalLoading 
   const [loadingHoldings, setLoadingHoldings] = useState(false)
   const [loadingCompanies, setLoadingCompanies] = useState(false)
 
-  // Directors list (to be populated from API)
-  const directors: Array<{ id: string; name: string; email?: string }> = []
+  // Users list state
+  const [users, setUsers] = useState<UserResponse[]>([])
+  const [loadingUsers, setLoadingUsers] = useState(false)
+
+  // Map users to directors format for display
+  const directors = users.map(user => ({
+    id: user.id,
+    name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email,
+    email: user.email
+  }))
 
   // Autocomplete state for holding
   const [holdingSearchQuery, setHoldingSearchQuery] = useState("")
@@ -103,7 +112,7 @@ export function AddDepartmentForm({ onAddDepartment, isLoading: externalLoading 
   const directorInputRef = useRef<HTMLInputElement>(null)
   const directorDropdownRef = useRef<HTMLDivElement>(null)
 
-  // Load holdings on mount
+  // Load holdings and users on mount
   useEffect(() => {
     const fetchHoldings = async () => {
       setLoadingHoldings(true)
@@ -117,7 +126,20 @@ export function AddDepartmentForm({ onAddDepartment, isLoading: externalLoading 
       }
     }
 
+    const fetchUsers = async () => {
+      setLoadingUsers(true)
+      try {
+        const usersData = await listUsers('active')
+        setUsers(usersData)
+      } catch (error) {
+        console.error('Failed to load users:', error)
+      } finally {
+        setLoadingUsers(false)
+      }
+    }
+
     fetchHoldings()
+    fetchUsers()
   }, [])
 
   // Load companies when holding is selected
@@ -153,9 +175,10 @@ export function AddDepartmentForm({ onAddDepartment, isLoading: externalLoading 
     company.name.toLowerCase().includes(companySearchQuery.toLowerCase())
   )
 
-  // Filter directors based on search query
+  // Filter directors based on search query (search by name or email)
   const filteredDirectors = directors.filter(director =>
-    director.name.toLowerCase().includes(directorSearchQuery.toLowerCase())
+    director.name.toLowerCase().includes(directorSearchQuery.toLowerCase()) ||
+    director.email?.toLowerCase().includes(directorSearchQuery.toLowerCase())
   )
 
   // Close dropdown when clicking outside
@@ -652,14 +675,14 @@ export function AddDepartmentForm({ onAddDepartment, isLoading: externalLoading 
                     ref={directorInputRef}
                     id="directorId"
                     type="text"
-                    placeholder="Начните вводить имя руководителя..."
+                    placeholder="Начните вводить имя или email..."
                     value={directorSearchQuery}
                     onChange={(e) => handleDirectorInputChange(e.target.value)}
                     onFocus={() => setShowDirectorDropdown(true)}
                     className={getInputClassName("directorId")}
                     aria-invalid={touched.directorId && !!errors.directorId}
                     aria-describedby={errors.directorId ? "directorId-error" : undefined}
-                    disabled={isLoading}
+                    disabled={isLoading || loadingUsers}
                     autoComplete="off"
                   />
                   {touched.directorId && !errors.directorId && formData.directorId && (
@@ -694,7 +717,7 @@ export function AddDepartmentForm({ onAddDepartment, isLoading: externalLoading 
                       </div>
                     ) : (
                       <div className="px-4 py-3 text-sm text-gray-500 text-center">
-                        Руководители не найдены
+                        {loadingUsers ? "Загрузка пользователей..." : "Пользователи не найдены"}
                       </div>
                     )}
                   </div>

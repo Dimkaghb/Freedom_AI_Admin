@@ -166,12 +166,38 @@ def create_department(
 
         # Insert department document
         result = departments_collection.insert_one(department_doc)
+        department_id_str = str(result.inserted_id)
 
-        logger.info(f"Successfully created department: {name} with ID: {result.inserted_id}")
+        logger.info(f"Successfully created department: {name} with ID: {department_id_str}")
+
+        # Add department ID to company's department_ids list
+        companies_collection = db[settings.COMPANIES_COLLECTION]
+        companies_collection.update_one(
+            {"_id": ObjectId(company_id)},
+            {"$addToSet": {"department_ids": department_id_str}, "$set": {"updated_at": current_time}}
+        )
+
+        logger.info(f"Added department {department_id_str} to company {company_id}")
+
+        # If manager_id is provided, update the user's role to "director"
+        if manager_id:
+            users_collection = db[settings.USERS_COLLECTION]
+            users_collection.update_one(
+                {"_id": ObjectId(manager_id)},
+                {
+                    "$set": {
+                        "role": "director",
+                        "department_id": department_id_str,
+                        "company_id": company_id,
+                        "updated_at": current_time
+                    }
+                }
+            )
+            logger.info(f"Updated user {manager_id} role to director for department {department_id_str}")
 
         # Create response model
         return DepartmentResponse(
-            id=str(result.inserted_id),
+            id=department_id_str,
             name=department_doc["name"],
             description=department_doc["description"],
             company_id=company_id,
@@ -433,11 +459,21 @@ def delete_department(department_id: str) -> bool:
         if not existing:
             raise ValueError(f"Department not found with ID: {department_id}")
 
+        # Store company_id before deletion
+        company_id = existing["company_id"]
+
         # Permanently delete the department
         result = departments_collection.delete_one({"_id": obj_id})
 
         if result.deleted_count > 0:
-            logger.info(f"Successfully deleted department: {department_id}")
+            # Remove department ID from company's department_ids list
+            companies_collection = db[settings.COMPANIES_COLLECTION]
+            companies_collection.update_one(
+                {"_id": ObjectId(company_id)},
+                {"$pull": {"department_ids": department_id}, "$set": {"updated_at": datetime.utcnow()}}
+            )
+
+            logger.info(f"Successfully deleted department: {department_id} and removed from company {company_id}")
             return True
         else:
             logger.warning(f"Department could not be deleted: {department_id}")

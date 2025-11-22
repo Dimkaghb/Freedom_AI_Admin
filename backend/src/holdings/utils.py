@@ -88,6 +88,7 @@ def create_holding(name: str, description: Optional[str] = None) -> HoldingRespo
     holding_doc = {
         "name": name.strip(),
         "description": description.strip() if description else None,
+        "company_ids": [],  # Initialize empty company list
         "created_at": current_time,
         "updated_at": current_time,
         "is_deleted": False
@@ -123,6 +124,7 @@ def create_holding(name: str, description: Optional[str] = None) -> HoldingRespo
             id=str(result.inserted_id),
             name=holding_doc["name"],
             description=holding_doc["description"],
+            company_ids=[],
             created_at=current_time,
             updated_at=current_time
         )
@@ -172,6 +174,7 @@ def get_all_holdings() -> List[HoldingResponse]:
                     id=str(doc["_id"]),
                     name=doc["name"],
                     description=doc.get("description"),
+                    company_ids=doc.get("company_ids", []),
                     created_at=doc["created_at"],
                     updated_at=doc["updated_at"]
                 )
@@ -229,6 +232,7 @@ def get_holding_by_id(holding_id: str) -> Optional[HoldingResponse]:
             id=str(doc["_id"]),
             name=doc["name"],
             description=doc.get("description"),
+            company_ids=doc.get("company_ids", []),
             created_at=doc["created_at"],
             updated_at=doc["updated_at"]
         )

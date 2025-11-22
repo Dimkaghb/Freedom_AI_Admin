@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { CheckIcon, XIcon, PlusIcon, AlertCircleIcon, RefreshCwIcon, Building2, ChevronDown } from "lucide-react"
 import { createCompany } from "@/services/company.api"
 import { listHoldings } from "@/services/holding.api"
+import { listUsers, type UserResponse } from "@/services/user.api"
 
 // Types and interfaces for better type safety
 interface Company {
@@ -62,6 +63,10 @@ export function AddCompanyForm({ onAddCompany, isLoading: externalLoading = fals
   const [holdings, setHoldings] = useState<Array<{ id: string; name: string }>>([])
   const [loadingHoldings, setLoadingHoldings] = useState(false)
 
+  // Users list state
+  const [users, setUsers] = useState<UserResponse[]>([])
+  const [loadingUsers, setLoadingUsers] = useState(false)
+
   // Autocomplete state for holdings
   const [holdingSearchQuery, setHoldingSearchQuery] = useState("")
   const [selectedHoldingName, setSelectedHoldingName] = useState("")
@@ -76,10 +81,14 @@ export function AddCompanyForm({ onAddCompany, isLoading: externalLoading = fals
   const adminInputRef = useRef<HTMLInputElement>(null)
   const adminDropdownRef = useRef<HTMLDivElement>(null)
 
-  // Admins list (to be populated from API)
-  const admins: Array<{ id: string; name: string; email?: string }> = []
+  // Map users to admin format for display
+  const admins = users.map(user => ({
+    id: user.id,
+    name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email,
+    email: user.email
+  }))
 
-  // Load holdings on mount
+  // Load holdings and users on mount
   useEffect(() => {
     const fetchHoldings = async () => {
       setLoadingHoldings(true)
@@ -93,7 +102,20 @@ export function AddCompanyForm({ onAddCompany, isLoading: externalLoading = fals
       }
     }
 
+    const fetchUsers = async () => {
+      setLoadingUsers(true)
+      try {
+        const usersData = await listUsers('active')
+        setUsers(usersData)
+      } catch (error) {
+        console.error('Failed to load users:', error)
+      } finally {
+        setLoadingUsers(false)
+      }
+    }
+
     fetchHoldings()
+    fetchUsers()
   }, [])
 
   // Filter holdings based on search query
@@ -101,9 +123,10 @@ export function AddCompanyForm({ onAddCompany, isLoading: externalLoading = fals
     holding.name.toLowerCase().includes(holdingSearchQuery.toLowerCase())
   )
 
-  // Filter admins based on search query
+  // Filter admins based on search query (search by name or email)
   const filteredAdmins = admins.filter(admin =>
-    admin.name.toLowerCase().includes(adminSearchQuery.toLowerCase())
+    admin.name.toLowerCase().includes(adminSearchQuery.toLowerCase()) ||
+    admin.email?.toLowerCase().includes(adminSearchQuery.toLowerCase())
   )
 
   // Close dropdown when clicking outside
@@ -454,12 +477,12 @@ export function AddCompanyForm({ onAddCompany, isLoading: externalLoading = fals
                     ref={adminInputRef}
                     id="adminId"
                     type="text"
-                    placeholder="Начните вводить имя администратора..."
+                    placeholder="Начните вводить имя или email..."
                     value={adminSearchQuery}
                     onChange={(e) => handleAdminInputChange(e.target.value)}
                     onFocus={() => setShowAdminDropdown(true)}
                     className="transition-colors duration-200"
-                    disabled={isLoading}
+                    disabled={isLoading || loadingUsers}
                     autoComplete="off"
                   />
                 </div>
@@ -488,7 +511,7 @@ export function AddCompanyForm({ onAddCompany, isLoading: externalLoading = fals
                       </div>
                     ) : (
                       <div className="px-4 py-3 text-sm text-gray-500 text-center">
-                        Администраторы не найдены
+                        {loadingUsers ? "Загрузка пользователей..." : "Пользователи не найдены"}
                       </div>
                     )}
                   </div>

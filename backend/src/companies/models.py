@@ -26,6 +26,7 @@ class CompanyResponse(BaseModel):
     description: Optional[str] = None
     holding_id: str
     admin_id: Optional[str] = None
+    department_ids: List[str] = Field(default_factory=list, description="List of department IDs belonging to this company")
     created_at: datetime
     updated_at: datetime
 
@@ -37,6 +38,7 @@ class CompanyResponse(BaseModel):
                 "description": "Technology company",
                 "holding_id": "507f1f77bcf86cd799439012",
                 "admin_id": "507f1f77bcf86cd799439013",
+                "department_ids": ["507f1f77bcf86cd799439014", "507f1f77bcf86cd799439015"],
                 "created_at": "2024-01-01T00:00:00",
                 "updated_at": "2024-01-01T00:00:00"
             }
@@ -50,6 +52,7 @@ class CompanyInDB(BaseModel):
     description: Optional[str] = None
     holding_id: str
     admin_id: Optional[str] = None
+    department_ids: List[str] = Field(default_factory=list, description="List of department IDs belonging to this company")
     created_at: datetime
     updated_at: datetime
     is_deleted: bool = False  # Soft delete flag

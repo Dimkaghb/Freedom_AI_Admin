@@ -107,7 +107,7 @@ def create_company(
         if admin_id:
             validate_object_id(admin_id, "admin_id")
 
-            companies_collection = db[settings.COMPANIES_COLLECTION]
+        companies_collection = db[settings.COMPANIES_COLLECTION]
 
         # Create unique index on name within each holding (case-insensitive)
         companies_collection.create_index(
@@ -135,6 +135,7 @@ def create_company(
             "description": description.strip() if description else None,
             "holding_id": holding_id,
             "admin_id": admin_id,
+            "department_ids": [],  # Initialize empty department list
             "created_at": current_time,
             "updated_at": current_time,
             "is_deleted": False
@@ -142,16 +143,42 @@ def create_company(
 
         # Insert company document
         result = companies_collection.insert_one(company_doc)
+        company_id_str = str(result.inserted_id)
 
-        logger.info(f"Successfully created company: {name} with ID: {result.inserted_id}")
+        logger.info(f"Successfully created company: {name} with ID: {company_id_str}")
+
+        # Add company ID to holding's company_ids list
+        holdings_collection = db[settings.HOLDINGS_COLLECTION]
+        holdings_collection.update_one(
+            {"_id": ObjectId(holding_id)},
+            {"$addToSet": {"company_ids": company_id_str}, "$set": {"updated_at": current_time}}
+        )
+
+        logger.info(f"Added company {company_id_str} to holding {holding_id}")
+
+        # If admin_id is provided, update the user's role to "admin"
+        if admin_id:
+            users_collection = db[settings.USERS_COLLECTION]
+            users_collection.update_one(
+                {"_id": ObjectId(admin_id)},
+                {
+                    "$set": {
+                        "role": "admin",
+                        "company_id": company_id_str,
+                        "updated_at": current_time
+                    }
+                }
+            )
+            logger.info(f"Updated user {admin_id} role to admin for company {company_id_str}")
 
         # Create response model
         return CompanyResponse(
-            id=str(result.inserted_id),
+            id=company_id_str,
             name=company_doc["name"],
             description=company_doc["description"],
             holding_id=holding_id,
             admin_id=admin_id,
+            department_ids=[],
             created_at=current_time,
             updated_at=current_time
         )
@@ -211,6 +238,7 @@ def get_all_companies(holding_id: Optional[str] = None) -> List[CompanyResponse]
                     description=doc.get("description"),
                     holding_id=doc["holding_id"],
                     admin_id=doc.get("admin_id"),
+                    department_ids=doc.get("department_ids", []),
                     created_at=doc["created_at"],
                     updated_at=doc["updated_at"]
                 )
@@ -270,6 +298,7 @@ def get_company_by_id(company_id: str) -> Optional[CompanyResponse]:
             description=doc.get("description"),
             holding_id=doc["holding_id"],
             admin_id=doc.get("admin_id"),
+            department_ids=doc.get("department_ids", []),
             created_at=doc["created_at"],
             updated_at=doc["updated_at"]
         )
@@ -409,11 +438,21 @@ def delete_company(company_id: str) -> bool:
         if not existing:
             raise ValueError(f"Company not found with ID: {company_id}")
 
+        # Store holding_id before deletion
+        holding_id = existing["holding_id"]
+
         # Permanently delete the company
         result = companies_collection.delete_one({"_id": obj_id})
 
         if result.deleted_count > 0:
-            logger.info(f"Successfully deleted company: {company_id}")
+            # Remove company ID from holding's company_ids list
+            holdings_collection = db[settings.HOLDINGS_COLLECTION]
+            holdings_collection.update_one(
+                {"_id": ObjectId(holding_id)},
+                {"$pull": {"company_ids": company_id}, "$set": {"updated_at": datetime.utcnow()}}
+            )
+
+            logger.info(f"Successfully deleted company: {company_id} and removed from holding {holding_id}")
             return True
         else:
             logger.warning(f"Company could not be deleted: {company_id}")
