@@ -145,3 +145,32 @@ export const rejectPendingUser = async (pendingUserId: string): Promise<{message
     throw new Error(errorMessage);
   }
 };
+
+/**
+ * Delete user response interface
+ */
+export interface DeleteUserResponse {
+  message: string;
+  user_id: string;
+  email: string;
+  name: string;
+  companies_updated: number;
+  departments_updated: number;
+}
+
+/**
+ * Delete a user and handle cascade updates
+ *
+ * @param userId - ID of the user to delete
+ * @returns Promise with deletion result details
+ * @throws Error if deletion fails
+ */
+export const deleteUser = async (userId: string): Promise<DeleteUserResponse> => {
+  try {
+    const response = await apiClient.delete<DeleteUserResponse>(`/users/${userId}`);
+    return response.data;
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || 'Failed to delete user';
+    throw new Error(errorMessage);
+  }
+};

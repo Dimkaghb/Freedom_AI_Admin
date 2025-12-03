@@ -6,9 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { CheckCircle, XCircle, Clock, RefreshCw, UserCheck, UserX } from "lucide-react"
+import { CheckCircle, XCircle, Clock, RefreshCw, UserCheck, UserX, Trash2, AlertCircle } from "lucide-react"
 import { AddUserForm } from './addUser'
-import { listUsers, listPendingUsers, approvePendingUser, rejectPendingUser } from "@/services/user.api"
+import { listUsers, listPendingUsers, approvePendingUser, rejectPendingUser, deleteUser } from "@/services/user.api"
 import type { UserResponse, PendingUserResponse } from "@/services/user.api"
 
 /**
@@ -23,6 +23,8 @@ export function UsersManagement() {
   const [loadingUsers, setLoadingUsers] = useState(false)
   const [loadingPending, setLoadingPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null)
 
   /**
    * Fetch all users
@@ -80,6 +82,38 @@ export function UsersManagement() {
       setError(err.message || 'Failed to reject user')
     }
   }, [fetchPendingUsers])
+
+  /**
+   * Handle delete user with confirmation
+   */
+  const handleDelete = useCallback(async (userId: string, userEmail: string) => {
+    // Show confirmation dialog
+    const confirmed = window.confirm(
+      `Вы уверены, что хотите удалить пользователя ${userEmail}?\n\nЭто действие необратимо и приведет к:\n- Удалению пользователя из системы\n- Удалению из должностей администратора компании или менеджера отдела\n- Удалению всех связанных данных`
+    )
+
+    if (!confirmed) {
+      return
+    }
+
+    setDeletingUserId(userId)
+    setError(null)
+    setSuccessMessage(null)
+
+    try {
+      const result = await deleteUser(userId)
+      setSuccessMessage(`Пользователь ${result.email} успешно удален`)
+      // Refresh users list
+      await fetchUsers()
+
+      // Clear success message after 5 seconds
+      setTimeout(() => setSuccessMessage(null), 5000)
+    } catch (err: any) {
+      setError(err.message || 'Failed to delete user')
+    } finally {
+      setDeletingUserId(null)
+    }
+  }, [fetchUsers])
 
   /**
    * Load data on mount
@@ -234,6 +268,32 @@ export function UsersManagement() {
           </div>
         </CardHeader>
         <CardContent>
+          {/* Success Message */}
+          {successMessage && (
+            <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+              <div className="flex items-start gap-3">
+                <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-green-900">Успешно</p>
+                  <p className="text-sm text-green-700 mt-1">{successMessage}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Error Message */}
+          {error && (
+            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="h-5 w-5 text-red-600 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-red-900">Ошибка</p>
+                  <p className="text-sm text-red-700 mt-1">{error}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {loadingUsers ? (
             <div className="flex items-center justify-center py-12">
               <RefreshCw className="h-8 w-8 animate-spin text-gray-400" />
@@ -259,6 +319,7 @@ export function UsersManagement() {
                     <TableHead>Компания</TableHead>
                     <TableHead>Отдел</TableHead>
                     <TableHead>Роль</TableHead>
+                    <TableHead className="w-24">Действия</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -276,6 +337,21 @@ export function UsersManagement() {
                       <TableCell className="text-gray-500 italic">Неизвестно</TableCell>
                       <TableCell className="text-gray-500 italic">Неизвестно</TableCell>
                       <TableCell>{getRoleBadge(user.role)}</TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                          onClick={() => handleDelete(user.id, user.email)}
+                          disabled={deletingUserId === user.id}
+                        >
+                          {deletingUserId === user.id ? (
+                            <RefreshCw className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

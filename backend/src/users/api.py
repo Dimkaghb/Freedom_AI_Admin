@@ -22,7 +22,8 @@ from .utils import (
     list_pending_users,
     approve_pending_user,
     reject_pending_user,
-    list_users_with_filter
+    list_users_with_filter,
+    delete_user
 )
 from ..auth.dependencies import require_admin, get_current_user
 
@@ -522,6 +523,89 @@ async def list_users_endpoint(
 
     except Exception as e:
         logger.error(f"Unexpected error while listing users: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred. Please contact support."
+        )
+
+
+@router.delete("/{user_id}", status_code=status.HTTP_200_OK)
+async def delete_user_endpoint(
+    user_id: str,
+    current_admin: dict = Depends(require_admin)
+):
+    """
+    Delete a user and handle cascade updates.
+
+    This endpoint performs a hard delete of a user and handles all related references:
+    - Removes user as company admin (sets company.admin_id to None)
+    - Removes user as department manager (sets department.manager_id to None)
+    - Deletes the user from the users collection
+
+    Permissions:
+    - Superadmin: Can delete any user (except other superadmins)
+    - Admin: Can only delete users in their company (except superadmins)
+    - Director/User: Cannot delete users
+
+    Args:
+        user_id: MongoDB ObjectId string of user to delete
+        current_admin: Authenticated admin user
+
+    Returns:
+        dict: Success message with deleted user info
+
+    Raises:
+        HTTPException:
+            - 400: Invalid user_id format
+            - 403: Admin lacks permission or attempting to delete superadmin
+            - 404: User not found
+            - 500: Server error
+
+    Example Response:
+        ```json
+        {
+            "message": "User deleted successfully",
+            "user_id": "607f1f77bcf86cd799439021",
+            "email": "user@example.com",
+            "name": "John Doe",
+            "companies_updated": 1,
+            "departments_updated": 2
+        }
+        ```
+    """
+    try:
+        result = delete_user(user_id, current_admin)
+        logger.info(f"User {user_id} deleted by admin {current_admin.get('email')}")
+        return result
+
+    except ValueError as e:
+        logger.warning(f"Delete user validation error: {str(e)}")
+        error_msg = str(e).lower()
+        if "not found" in error_msg:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=str(e)
+            )
+        elif "permission" in error_msg or "cannot" in error_msg or "only" in error_msg:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=str(e)
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(e)
+            )
+
+    except ConnectionFailure as e:
+        logger.error(f"Database connection error while deleting user: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database connection error. Please try again later."
+        )
+
+    except Exception as e:
+        logger.error(f"Unexpected error while deleting user: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An unexpected error occurred. Please contact support."

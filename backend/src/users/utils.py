@@ -888,3 +888,119 @@ def list_users_with_filter(admin_user: dict, status_filter: str = "active"):
     except Exception as e:
         logger.error(f"Unexpected error while listing users: {str(e)}")
         raise Exception(f"Failed to list users: {str(e)}")
+
+
+def delete_user(user_id: str, admin_user: dict) -> dict:
+    """
+    Delete a user and handle cascade updates.
+
+    This function performs a hard delete of a user and handles all related references:
+    - Removes user as company admin (sets company.admin_id to None)
+    - Removes user as department manager (sets department.manager_id to None)
+    - Deletes the user from the users collection
+    - Maintains historical records in pending_users with action references
+
+    Permissions:
+    - Superadmin: Can delete any user (except other superadmins)
+    - Admin: Can only delete users in their company (except superadmins)
+    - Director/User: Cannot delete users
+
+    Args:
+        user_id: MongoDB ObjectId string of user to delete
+        admin_user: Admin user performing the deletion
+
+    Returns:
+        Dict with success message and deleted user info
+
+    Raises:
+        ValueError: If user not found, invalid permissions, or attempting to delete superadmin
+        ConnectionFailure: If database connection fails
+
+    Example:
+        >>> result = delete_user("507f1f77bcf86cd799439011", admin_user)
+        >>> print(result["message"])
+        'User deleted successfully'
+    """
+    try:
+        if not ObjectId.is_valid(user_id):
+            raise ValueError(f"Invalid user_id format: {user_id}")
+
+        db = get_database()
+        users_collection = db[settings.USERS_COLLECTION]
+        companies_collection = db[settings.COMPANIES_COLLECTION]
+        departments_collection = db[settings.DEPARTMENTS_COLLECTION]
+
+        # Fetch user to delete
+        user_to_delete = users_collection.find_one({"_id": ObjectId(user_id)})
+        if not user_to_delete:
+            raise ValueError(f"User not found with ID: {user_id}")
+
+        # Check if trying to delete a superadmin
+        if user_to_delete.get("role") == "superadmin":
+            raise ValueError("Cannot delete superadmin users")
+
+        # Check admin has permission to delete
+        admin_role = admin_user.get("role")
+        admin_company_id = admin_user.get("company_id")
+
+        if admin_role == "admin":
+            # Admin can only delete users in their company
+            if user_to_delete.get("company_id") != admin_company_id:
+                raise ValueError("You can only delete users in your own company")
+        elif admin_role != "superadmin":
+            raise ValueError(f"User with role {admin_role} cannot delete users")
+
+        user_email = user_to_delete.get("email")
+        user_full_name = f"{user_to_delete.get('firstName', '')} {user_to_delete.get('lastName', '')}".strip() or user_email
+
+        # Handle cascade updates - Remove user from companies where they are admin
+        companies_with_user_as_admin = companies_collection.find({"admin_id": user_id})
+        companies_updated = 0
+        for company in companies_with_user_as_admin:
+            companies_collection.update_one(
+                {"_id": company["_id"]},
+                {"$set": {"admin_id": None, "updated_at": datetime.utcnow()}}
+            )
+            companies_updated += 1
+            logger.info(f"Removed user {user_id} as admin from company {company['_id']}")
+
+        # Handle cascade updates - Remove user from departments where they are manager
+        departments_with_user_as_manager = departments_collection.find({"manager_id": user_id})
+        departments_updated = 0
+        for department in departments_with_user_as_manager:
+            departments_collection.update_one(
+                {"_id": department["_id"]},
+                {"$set": {"manager_id": None, "updated_at": datetime.utcnow()}}
+            )
+            departments_updated += 1
+            logger.info(f"Removed user {user_id} as manager from department {department['_id']}")
+
+        # Delete the user
+        delete_result = users_collection.delete_one({"_id": ObjectId(user_id)})
+
+        if delete_result.deleted_count == 0:
+            raise ValueError(f"Failed to delete user with ID: {user_id}")
+
+        logger.info(
+            f"Successfully deleted user {user_email} (ID: {user_id}) "
+            f"by admin {admin_user.get('email')}. "
+            f"Updated {companies_updated} companies and {departments_updated} departments."
+        )
+
+        return {
+            "message": "User deleted successfully",
+            "user_id": user_id,
+            "email": user_email,
+            "name": user_full_name,
+            "companies_updated": companies_updated,
+            "departments_updated": departments_updated
+        }
+
+    except ValueError:
+        raise
+    except (ConnectionFailure, ServerSelectionTimeoutError) as e:
+        logger.error(f"Database connection error while deleting user: {str(e)}")
+        raise ConnectionFailure(f"Failed to delete user: {str(e)}")
+    except Exception as e:
+        logger.error(f"Unexpected error while deleting user: {str(e)}")
+        raise Exception(f"Failed to delete user: {str(e)}")
