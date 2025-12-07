@@ -124,9 +124,12 @@ def add_user_by_admin(email: str, role: str, firstName: str = None, lastName: st
     
     Args:
         email (str): User's email address (will be validated and normalized)
-        role (str): User role, must be either 'admin' or 'user'
+        role (str): User role, must be either 'admin', 'director', or 'user'
         firstName (str, optional): User's first name. Defaults to None.
         lastName (str, optional): User's last name. Defaults to None.
+        company_id (str, optional): Company ID for the user. Defaults to None.
+        department_id (str, optional): Department ID for the user. Defaults to None.
+        holding_id (str, optional): Holding ID for the user. Defaults to None.
         
     Returns:
         UserCreateResponse: Complete user document with temporary password for one-time display
@@ -157,9 +160,9 @@ def add_user_by_admin(email: str, role: str, firstName: str = None, lastName: st
     # Input validation
     if not email or not email.strip():
         raise ValueError("Email is required and cannot be empty")
-    
-    if not role or role not in ["admin", "user"]:
-        raise ValueError("Role must be either 'admin' or 'user'")
+
+    if not role or role not in ["admin", "director", "user"]:
+        raise ValueError("Role must be either 'admin', 'director', or 'user'")
     
     # Validate and normalize email
     try:
@@ -238,11 +241,6 @@ def add_user_by_admin(email: str, role: str, firstName: str = None, lastName: st
         error_msg = f"Unexpected error during user creation: {str(e)}"
         logger.error(error_msg)
         raise Exception(error_msg)
-        
-    finally:
-        # Clean up database connection
-        if client:
-            logger.debug("Database connection closed")
 
 
 # Legacy function for backward compatibility
@@ -873,6 +871,9 @@ def list_users_with_filter(admin_user: dict, status_filter: str = "active"):
                 firstName=user.get("firstName"),
                 lastName=user.get("lastName"),
                 is_active=user.get("is_active", True),
+                company_id=user.get("company_id"),
+                department_id=user.get("department_id"),
+                holding_id=user.get("holding_id"),
                 created_at=user["created_at"],
                 updated_at=user["updated_at"]
             ))

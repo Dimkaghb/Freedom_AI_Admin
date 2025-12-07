@@ -8,6 +8,9 @@ export interface CreateUserRequest {
   role: 'admin' | 'user' | 'director';
   firstName?: string;
   lastName?: string;
+  holding_id?: string;
+  company_id?: string;
+  department_id?: string;
 }
 
 /**
@@ -20,6 +23,9 @@ export interface CreateUserResponse {
   firstName?: string;
   lastName?: string;
   is_active: boolean;
+  company_id?: string;
+  department_id?: string;
+  holding_id?: string;
   created_at: string;
   updated_at: string;
   temporary_password: string;
@@ -35,6 +41,9 @@ export interface UserResponse {
   firstName?: string;
   lastName?: string;
   is_active: boolean;
+  company_id?: string;
+  department_id?: string;
+  holding_id?: string;
   created_at: string;
   updated_at: string;
 }
@@ -116,10 +125,7 @@ export const listPendingUsers = async (): Promise<PendingUserResponse[]> => {
  */
 export const approvePendingUser = async (pendingUserId: string): Promise<UserResponse> => {
   try {
-    const response = await apiClient.post<UserResponse>('/users/approve', {
-      pending_user_id: pendingUserId,
-      action: 'approve'
-    });
+    const response = await apiClient.post<UserResponse>(`/users/pending/${pendingUserId}/approve`);
     return response.data;
   } catch (error: any) {
     const errorMessage = error.response?.data?.detail || 'Failed to approve user';
@@ -135,10 +141,7 @@ export const approvePendingUser = async (pendingUserId: string): Promise<UserRes
  */
 export const rejectPendingUser = async (pendingUserId: string): Promise<{message: string}> => {
   try {
-    const response = await apiClient.post<{message: string}>('/users/approve', {
-      pending_user_id: pendingUserId,
-      action: 'reject'
-    });
+    const response = await apiClient.post<{message: string}>(`/users/pending/${pendingUserId}/reject`);
     return response.data;
   } catch (error: any) {
     const errorMessage = error.response?.data?.detail || 'Failed to reject user';
@@ -171,6 +174,84 @@ export const deleteUser = async (userId: string): Promise<DeleteUserResponse> =>
     return response.data;
   } catch (error: any) {
     const errorMessage = error.response?.data?.detail || 'Failed to delete user';
+    throw new Error(errorMessage);
+  }
+};
+
+/**
+ * Registration link creation request interface
+ */
+export interface CreateRegistrationLinkRequest {
+  company_id: string;
+  department_id?: string;
+  role: 'admin' | 'director' | 'user';
+}
+
+/**
+ * Registration link response interface
+ */
+export interface RegistrationLinkResponse {
+  link_id: string;
+  registration_url: string;
+  company_id: string;
+  department_id?: string;
+  role: string;
+  created_at: string;
+  expires_at: string;
+  is_used: boolean;
+}
+
+/**
+ * Create a registration link for new users
+ *
+ * @param linkData - Registration link creation data
+ * @returns Promise with created registration link
+ * @throws Error if creation fails
+ */
+export const createRegistrationLink = async (
+  linkData: CreateRegistrationLinkRequest
+): Promise<RegistrationLinkResponse> => {
+  try {
+    const response = await apiClient.post<RegistrationLinkResponse>(
+      '/users/create-registration-link',
+      linkData
+    );
+    return response.data;
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || 'Failed to create registration link';
+    throw new Error(errorMessage);
+  }
+};
+
+/**
+ * Send registration invitation email
+ *
+ * @param email - Recipient email address
+ * @param registrationLink - Registration link URL
+ * @param companyName - Company name
+ * @param role - User role
+ * @param departmentName - Department name (optional)
+ * @returns Promise with email sending result
+ * @throws Error if email sending fails
+ */
+export const sendRegistrationInvite = async (
+  email: string,
+  registrationLink: string,
+  companyName: string,
+  role: string,
+  departmentName?: string
+): Promise<{ success: boolean; message: string }> => {
+  try {
+    const response = await apiClient.post('/emails/send-registration-invite', {
+      to_email: email,
+      registration_link: registrationLink,
+      company_name: companyName,
+      role: role,
+      department_name: departmentName,
+    });
+    return response.data;
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.detail || 'Failed to send invitation email';
     throw new Error(errorMessage);
   }
 };

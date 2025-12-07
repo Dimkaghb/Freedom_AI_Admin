@@ -6,10 +6,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { CheckCircle, XCircle, Clock, RefreshCw, UserCheck, UserX, Trash2, AlertCircle } from "lucide-react"
+import { CheckCircle, XCircle, Clock, RefreshCw, UserCheck, UserX, Trash2, AlertCircle, UserPlus, Link2, ArrowLeft } from "lucide-react"
+import { CreateRegistrationLinkForm } from '@/components/CreateRegistrationLinkForm'
 import { AddUserForm } from './addUser'
 import { listUsers, listPendingUsers, approvePendingUser, rejectPendingUser, deleteUser } from "@/services/user.api"
 import type { UserResponse, PendingUserResponse } from "@/services/user.api"
+import { listCompanies } from "@/services/company.api"
+import { listDepartments } from "@/services/department.api"
+import { listHoldings } from "@/services/holding.api"
+import type { CompanyResponse } from "@/services/company.api"
+import type { DepartmentResponse } from "@/services/department.api"
+import type { HoldingResponse } from "@/services/holding.api"
 
 /**
  * UsersManagement component with enhanced layout:
@@ -25,6 +32,13 @@ export function UsersManagement() {
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null)
+  const [addUserMethod, setAddUserMethod] = useState<'link' | 'manual' | null>(null)
+
+  // Organization data for lookups
+  const [companies, setCompanies] = useState<CompanyResponse[]>([])
+  const [departments, setDepartments] = useState<DepartmentResponse[]>([])
+  const [holdings, setHoldings] = useState<HoldingResponse[]>([])
+  const [organizationsLoaded, setOrganizationsLoaded] = useState(false)
 
   /**
    * Fetch all users
@@ -116,12 +130,60 @@ export function UsersManagement() {
   }, [fetchUsers])
 
   /**
+   * Load organizations data for lookups
+   */
+  const fetchOrganizations = useCallback(async () => {
+    try {
+      const [companiesData, departmentsData, holdingsData] = await Promise.all([
+        listCompanies(),
+        listDepartments(),
+        listHoldings(),
+      ])
+      setCompanies(companiesData)
+      setDepartments(departmentsData)
+      setHoldings(holdingsData)
+      setOrganizationsLoaded(true)
+    } catch (err: any) {
+      console.error('Failed to load organizations:', err)
+      setOrganizationsLoaded(true) // Set to true anyway to prevent infinite loading
+    }
+  }, [])
+
+  /**
+   * Get company name by ID
+   */
+  const getCompanyName = useCallback((companyId?: string) => {
+    if (!companyId) return null
+    const company = companies.find(c => c.id === companyId)
+    return company?.name || companyId
+  }, [companies])
+
+  /**
+   * Get department name by ID
+   */
+  const getDepartmentName = useCallback((departmentId?: string) => {
+    if (!departmentId) return null
+    const department = departments.find(d => d.id === departmentId)
+    return department?.name || departmentId
+  }, [departments])
+
+  /**
+   * Get holding name by ID
+   */
+  const getHoldingName = useCallback((holdingId?: string) => {
+    if (!holdingId) return null
+    const holding = holdings.find(h => h.id === holdingId)
+    return holding?.name || holdingId
+  }, [holdings])
+
+  /**
    * Load data on mount
    */
   useEffect(() => {
+    fetchOrganizations()
     fetchUsers()
     fetchPendingUsers()
-  }, [fetchUsers, fetchPendingUsers])
+  }, [fetchOrganizations, fetchUsers, fetchPendingUsers])
 
   /**
    * Get status badge
@@ -172,12 +234,76 @@ export function UsersManagement() {
         {/* Add User Section */}
         <Card className="border border-gray-200 shadow-sm">
           <CardHeader>
-            <CardTitle className="text-lg font-semibold text-gray-900">
-              Добавить пользователя
+            <CardTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+              {addUserMethod && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setAddUserMethod(null)}
+                  className="h-8 w-8 p-0"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+              )}
+              {!addUserMethod && "Добавить пользователя"}
+              {addUserMethod === 'link' && "Создать ссылку регистрации"}
+              {addUserMethod === 'manual' && "Добавить пользователя вручную"}
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <AddUserForm onUserCreated={fetchUsers} />
+            {/* Method Selection Buttons */}
+            {!addUserMethod && (
+              <div className="space-y-3">
+                <Button
+                  onClick={() => setAddUserMethod('link')}
+                  variant="outline"
+                  className="w-full h-auto py-4 px-4 flex items-start gap-3 hover:bg-gray-50 border-2"
+                >
+                  <Link2 className="h-5 w-5 mt-0.5 shrink-0" />
+                  <div className="text-left flex-1">
+                    <div className="font-semibold text-sm mb-1">Сгенерировать ссылку регистрации</div>
+                    <div className="text-xs text-gray-600 font-normal">
+                      Пользователь самостоятельно заполнит данные
+                    </div>
+                  </div>
+                </Button>
+
+                <Button
+                  onClick={() => setAddUserMethod('manual')}
+                  variant="outline"
+                  className="w-full h-auto py-4 px-4 flex items-start gap-3 hover:bg-gray-50 border-2"
+                >
+                  <UserPlus className="h-5 w-5 mt-0.5 shrink-0" />
+                  <div className="text-left flex-1">
+                    <div className="font-semibold text-sm mb-1">Добавить вручную</div>
+                    <div className="text-xs text-gray-600 font-normal">
+                      Заполните данные и создайте временный пароль
+                    </div>
+                  </div>
+                </Button>
+              </div>
+            )}
+
+            {/* Registration Link Form */}
+            {addUserMethod === 'link' && (
+              <CreateRegistrationLinkForm
+                onSuccess={() => {
+                  fetchUsers()
+                  fetchPendingUsers()
+                }}
+                onCancel={() => setAddUserMethod(null)}
+              />
+            )}
+
+            {/* Manual Add Form */}
+            {addUserMethod === 'manual' && (
+              <AddUserForm
+                onUserCreated={() => {
+                  fetchUsers()
+                  setAddUserMethod(null)
+                }}
+              />
+            )}
           </CardContent>
         </Card>
 
@@ -333,9 +459,15 @@ export function UsersManagement() {
                       </TableCell>
                       <TableCell className="text-gray-600">{user.email}</TableCell>
                       <TableCell>{getStatusBadge(user.is_active)}</TableCell>
-                      <TableCell className="text-gray-500 italic">Неизвестно</TableCell>
-                      <TableCell className="text-gray-500 italic">Неизвестно</TableCell>
-                      <TableCell className="text-gray-500 italic">Неизвестно</TableCell>
+                      <TableCell className="text-gray-600">
+                        {getHoldingName(user.holding_id) || <span className="text-gray-400 italic">—</span>}
+                      </TableCell>
+                      <TableCell className="text-gray-600">
+                        {getCompanyName(user.company_id) || <span className="text-gray-400 italic">—</span>}
+                      </TableCell>
+                      <TableCell className="text-gray-600">
+                        {getDepartmentName(user.department_id) || <span className="text-gray-400 italic">—</span>}
+                      </TableCell>
                       <TableCell>{getRoleBadge(user.role)}</TableCell>
                       <TableCell>
                         <Button

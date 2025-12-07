@@ -35,7 +35,8 @@ export function RegisterForm({
 
   const [formData, setFormData] = useState({
     email: "",
-    full_name: "",
+    firstName: "",
+    lastName: "",
     password: "",
     password_confirm: "",
   })
@@ -85,7 +86,8 @@ export function RegisterForm({
       const response = await apiClient.post<RegistrationResponse>("/users/register", {
         link_id: linkId,
         email: formData.email,
-        full_name: formData.full_name,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
         password: formData.password,
         password_confirm: formData.password_confirm,
       })
@@ -94,7 +96,27 @@ export function RegisterForm({
       setSuccess(true)
     } catch (err: any) {
       console.error("Registration error:", err)
-      const errorMessage = err.response?.data?.detail || "Ошибка при регистрации. Пожалуйста, попробуйте позже."
+
+      // Handle validation errors (array of error objects)
+      let errorMessage = "Ошибка при регистрации. Пожалуйста, попробуйте позже."
+
+      if (err.response?.data?.detail) {
+        const detail = err.response.data.detail
+
+        // Check if detail is an array of validation errors
+        if (Array.isArray(detail)) {
+          errorMessage = detail.map((error: any) => error.msg || error.message || String(error)).join(', ')
+        }
+        // Check if detail is a string
+        else if (typeof detail === 'string') {
+          errorMessage = detail
+        }
+        // Check if detail is an object with msg
+        else if (typeof detail === 'object' && detail.msg) {
+          errorMessage = detail.msg
+        }
+      }
+
       setError(errorMessage)
     } finally {
       setIsLoading(false)
@@ -159,17 +181,32 @@ export function RegisterForm({
               )}
 
               <Field>
-                <FieldLabel htmlFor="full_name">Имя и Фамилия</FieldLabel>
+                <FieldLabel htmlFor="firstName">Имя</FieldLabel>
                 <Input
-                  id="full_name"
-                  name="full_name"
+                  id="firstName"
+                  name="firstName"
                   type="text"
-                  placeholder="Иван Иванов"
-                  value={formData.full_name}
+                  placeholder="Иван"
+                  value={formData.firstName}
                   onChange={handleChange}
                   required
                   disabled={isLoading || !linkId}
-                  autoComplete="name"
+                  autoComplete="given-name"
+                />
+              </Field>
+
+              <Field>
+                <FieldLabel htmlFor="lastName">Фамилия</FieldLabel>
+                <Input
+                  id="lastName"
+                  name="lastName"
+                  type="text"
+                  placeholder="Иванов"
+                  value={formData.lastName}
+                  onChange={handleChange}
+                  required
+                  disabled={isLoading || !linkId}
+                  autoComplete="family-name"
                 />
               </Field>
 

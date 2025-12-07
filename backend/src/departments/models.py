@@ -33,7 +33,7 @@ class DepartmentResponse(BaseModel):
                 "name": "Research and Development",
                 "description": "R&D Department",
                 "company_id": "507f1f77bcf86cd799439011",
-                "manager_id": "507f1f77bcf86cd799439013",
+                "manager_id": "507f1f77bcf86cd79943901с3",
                 "created_at": "2024-01-01T00:00:00",
                 "updated_at": "2024-01-01T00:00:00"
             }
