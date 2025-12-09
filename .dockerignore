@@ -1,0 +1,76 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Documentation
+*.md
+README.md
+LICENSE
+CLAUDE.md
+HIERARCHICAL_FOLDER_IMPLEMENTATION.md
+USER_MANAGEMENT_README.md
+
+# Node modules (will be installed in container)
+**/node_modules
+**/npm-debug.log
+**/yarn-error.log
+**/yarn.lock
+**/package-lock.json
+
+# Python
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/*.pyd
+.Python
+**/*.so
+**/*.egg
+**/*.egg-info
+**/dist
+**/build
+**/.pytest_cache
+**/.coverage
+**/.tox
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment files (will be passed via docker-compose)
+**/.env
+**/.env.local
+**/.env.*.local
+
+# Build outputs
+**/dist
+**/build
+**/.next
+**/.nuxt
+
+# Testing
+**/coverage
+**/.nyc_output
+
+# Logs
+**/*.log
+**/logs
+
+# Docker files themselves
+Dockerfile
+dockerfile
+docker-compose*.yml
+docker-compose*.yaml
+.dockerignore
+
+# Screenshots and temp files
+screenshots
+nul
+
+# Config files
+.config
+builder.config.json
