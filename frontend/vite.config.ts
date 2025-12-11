@@ -11,9 +11,13 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     }
   },
-  server: {
-    host: true,
+server: {
+    host: true, // allows Vite to be accessed via network IP/domain
     port: 3000,
-    allowedHosts: ['freedom-analysis-admin.chocodev.kz'],
-  },
+    hmr: {
+      host: 'freedom-analysis-admin.chocodev.kz',
+      protocol: 'ws',
+      port: 3000
+    }
+  }
 })
