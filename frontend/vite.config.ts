@@ -13,6 +13,7 @@ export default defineConfig({
   },
 server: {
     host: true, // allows Vite to be accessed via network IP/domain
-    port: 3000
+    port: 3000,
+    allowedHosts: ['freedom-analysis-admin.chocodev.kz']
   }
 })
