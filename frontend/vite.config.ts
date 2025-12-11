@@ -16,7 +16,7 @@ server: {
     port: 3000,
     hmr: {
       host: 'freedom-analysis-admin.chocodev.kz',
-      protocol: 'ws',
+      protocol: 'wss',
       port: 3000
     }
   }
