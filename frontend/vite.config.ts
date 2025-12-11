@@ -13,11 +13,6 @@ export default defineConfig({
   },
 server: {
     host: true, // allows Vite to be accessed via network IP/domain
-    port: 3000,
-    hmr: {
-      host: 'freedom-analysis-admin.chocodev.kz',
-      protocol: 'wss',
-      port: 3000
-    }
+    port: 3000
   }
 })
