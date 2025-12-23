@@ -57,6 +57,7 @@ import { AddDepartmentForm } from './addDepartment';
 import { AddHoldingForm } from './addHolding';
 import { AddCompanyForm } from './addCompany';
 import { UsersManagement } from './usersManagement';
+import { FileManager } from './file-manager';
 import { getDashboardStats, handleDashboardError } from '@/services/dashboard.api';
 import type { DashboardResponse } from '@/types/dashboard';
 import {
@@ -679,8 +680,8 @@ export const Dashboard = () => {
                 <AddCompanyForm onClose={() => setCurrentView('dashboard')} />
               </div>
             ) : currentView === 'knowledgeBase' ? (
-              <div className="container mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
-                {/* Knowledge Base - To be implemented */}
+              <div className="h-full w-full">
+                <FileManager />
               </div>
             ) : null}
           </div>

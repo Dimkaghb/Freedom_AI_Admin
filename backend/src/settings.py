@@ -70,6 +70,7 @@ class Settings(BaseSettings):
     COMPANIES_COLLECTION: str = os.getenv("COMPANIES_COLLECTION", "companies")
     DEPARTMENTS_COLLECTION: str = os.getenv("DEPARTMENTS_COLLECTION", "departments")
     FOLDERS_COLLECTION: str = os.getenv("FOLDERS_COLLECTION", "folders")
+    FILES_COLLECTION: str = os.getenv("FILES_COLLECTION", "files")
     USER_LINKS_COLLECTION: str = os.getenv("USER_LINKS_COLLECTION", "user_registration_links")
     PENDING_USERS_COLLECTION: str = os.getenv("PENDING_USERS_COLLECTION", "pending_users")
 
